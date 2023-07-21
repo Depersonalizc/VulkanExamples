@@ -20,6 +20,14 @@ function(buildExample EXAMPLE_NAME)
 	IF(USE_WAYLAND_WSI)
 		SET(SOURCE ${SOURCE} ${CMAKE_BINARY_DIR}/xdg-shell-client-protocol.h ${CMAKE_BINARY_DIR}/xdg-shell-protocol.c)
 	ENDIF()
+	# voxel cone tracing
+	IF(${EXAMPLE_NAME} STREQUAL "voxelconetracing")
+		file(GLOB ADD_SOURCE "${EXAMPLE_FOLDER}/actors/*.h"    "${EXAMPLE_FOLDER}/actors/*.cpp"
+		                     "${EXAMPLE_FOLDER}/assets/*.h"    "${EXAMPLE_FOLDER}/assets/*.cpp"    "${EXAMPLE_FOLDER}/assets/*.cc"
+							 "${EXAMPLE_FOLDER}/core/*.h"      "${EXAMPLE_FOLDER}/core/*.cpp")
+							 #"${EXAMPLE_FOLDER}/include/stb-master/stb_image.h")
+	    SET(SOURCE ${SOURCE} ${ADD_SOURCE})
+	ENDIF()
 	# Add shaders
 	set(SHADER_DIR_GLSL "../shaders/glsl/${EXAMPLE_NAME}")
 	file(GLOB SHADERS_GLSL "${SHADER_DIR_GLSL}/*.vert" "${SHADER_DIR_GLSL}/*.frag" "${SHADER_DIR_GLSL}/*.comp" "${SHADER_DIR_GLSL}/*.geom" "${SHADER_DIR_GLSL}/*.tesc" "${SHADER_DIR_GLSL}/*.tese" "${SHADER_DIR_GLSL}/*.mesh" "${SHADER_DIR_GLSL}/*.task" "${SHADER_DIR_GLSL}/*.rgen" "${SHADER_DIR_GLSL}/*.rchit" "${SHADER_DIR_GLSL}/*.rmiss" "${SHADER_DIR_GLSL}/*.rcall" "${SHADER_DIR_GLSL}/*.rahit" "${SHADER_DIR_GLSL}/*.rint" "${SHADER_DIR_GLSL}/*.glsl")
@@ -29,6 +37,7 @@ function(buildExample EXAMPLE_NAME)
 	source_group("Shaders\\HLSL" FILES ${SHADERS_HLSL})
 	# Add optional readme / tutorial
 	file(GLOB README_FILES "${EXAMPLE_FOLDER}/*.md")
+	# Executable
 	if(WIN32)
 		add_executable(${EXAMPLE_NAME} WIN32 ${MAIN_CPP} ${SOURCE} ${MAIN_HEADER} ${SHADERS_GLSL} ${SHADERS_HLSL} ${README_FILES})
 		target_link_libraries(${EXAMPLE_NAME} base ${Vulkan_LIBRARY} ${WINLIBS})
@@ -163,6 +172,7 @@ set(EXAMPLES
 	variablerateshading
 	vertexattributes
 	viewportarray
+	voxelconetracing
 	vulkanscene
 )
 

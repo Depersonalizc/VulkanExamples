@@ -1,0 +1,3 @@
+- obj assets root: assets/models/vct
+- textures root: assets/textures/vct
+- shaders: shaders/glsl/voxelconetracing

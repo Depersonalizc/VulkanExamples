@@ -129,20 +129,20 @@ protected:
 	VkPipelineStageFlags submitPipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	// Contains command buffers and semaphores to be presented to the queue
 	VkSubmitInfo submitInfo;
-	// Command buffers used for rendering
-	std::vector<VkCommandBuffer> drawCmdBuffers;
 	// Global render pass for frame buffer writes
 	VkRenderPass renderPass = VK_NULL_HANDLE;
-	// List of available frame buffers (same as number of swap chain images)
-	std::vector<VkFramebuffer>frameBuffers;
-	// Active frame buffer index
-	uint32_t currentBuffer = 0;
 	// Descriptor set pool
 	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 	// List of shader modules created (stored for cleanup)
 	std::vector<VkShaderModule> shaderModules;
 	// Pipeline cache object
 	VkPipelineCache pipelineCache;
+	// List of available frame buffers (same as number of swap chain images)
+	std::vector<VkFramebuffer> frameBuffers;
+	// Command buffers used for rendering
+	std::vector<VkCommandBuffer> drawCmdBuffers;
+	// Active frame buffer index
+	uint32_t currentBuffer = 0;
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
 	VulkanSwapChain swapChain;
 	// Synchronization semaphores
