@@ -69,9 +69,9 @@ public:
 	VulkanApp();
 	~VulkanApp();
 
-	bool bRenderToHmd = false;
-	std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-	long long frameIndex = 0;
+	//bool bRenderToHmd = false;
+	//std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	//long long frameIndex = 0;
 	VkSemaphore mipMapStartSemaphore;
 
 #if FEATURE_OVR
@@ -135,7 +135,8 @@ public:
 	//void createSwapChainImageViews();
 
 	//void createFramebuffers();
-	void createFrameBufferRenderPass();
+	//void createFrameBufferRenderPass();
+
 	void createFrameBufferCommandPool();
 	void createFrameBufferCommandBuffers();
 
@@ -148,8 +149,8 @@ public:
 	void createSceneBuffer();
 
 	void createDeferredFramebuffer();
-
 	void createDeferredRenderPass();
+
 	void createDeferredCommandPool();
 	void createDeferredCommandBuffers();
 
@@ -213,7 +214,7 @@ public:
 			else
 				theLastPostProcess = postProcessStages[to];
 		}
-	}	
+	}
 
 	void swingMainLight()
 	{
@@ -268,12 +269,12 @@ public:
 	//GLFWwindow* window;
 	//GLFWmonitor* primaryMonitor;
 
-	VkInstance instance;
+	//VkInstance instance;
 	//VkDebugReportCallbackEXT callback;
 
 	//This object will be implicitly destroyed
-	VkPhysicalDevice physicalDevice;
-	VkDevice device;
+	//VkPhysicalDevice physicalDevice;
+	//VkDevice device;
 
 	// Taken care of by the VulkanExampleBase::frameBuffers, swapChain, currentBuffer(index)
 	//VkSurfaceKHR surface;
@@ -300,7 +301,7 @@ public:
 
 
 	
-	VkRenderPass frameBufferRenderPass;
+	//VkRenderPass frameBufferRenderPass;
 	//VkCommandPool frameBufferCommandPool;                    // same as VulkanExample::vulkanDevice::commandPool
 	//std::vector<VkCommandBuffer> frameBufferCommandBuffers;  // same as VulkanExample::drawCmdBuffers
 	//std::vector<VkCommandBuffer> frameBufferCommandBuffers2;  // VR, right eye
@@ -328,17 +329,16 @@ public:
 	ComputeBlurMaterial *compHBMaterial2;
 	ComputeBlurMaterial *compVBMaterial2;
 
+
+
 	StandardShadow standardShadow;
 
 	singleTriangular* offScreenPlane;
 	singleTriangular* offScreenPlaneforPostProcess;
-
 	singleQuadral* debugDisplayPlane;
 
 	std::vector<DebugDisplayMaterial*> debugDisplayMaterials;
-
 	LastPostProcessgMaterial* lastPostProcessMaterial;
-
 	VoxelRenderMaterial* voxelRenderMaterial;
 
 	//VR BARREL AND ABERRATION
@@ -354,11 +354,12 @@ public:
 	VkCommandBuffer deferredCommandBuffer;
 	VkFramebuffer deferredFrameBuffer;
 
+	// Like: depthStencil
 	std::vector<VkImage> gBufferImages;
 	std::vector<VkDeviceMemory> gBufferImageMemories;
 	std::vector<VkImageView>  gBufferImageViews;
 
-
+	// Like: depthStencil
 	VkImage sceneImage;
 	VkDeviceMemory sceneImageMemories;
 	VkImageView sceneImageView;
@@ -369,10 +370,10 @@ public:
 	VkSemaphore renderFinishedSemaphore;
 	
 
-	uint32_t WIDTH;
-	uint32_t HEIGHT;
+	//uint32_t WIDTH;
+	//uint32_t HEIGHT;
 
-	uint32_t LayerCount;
+	//uint32_t LayerCount;
 
 	std::vector<DirectionalLight> directionLights;
 

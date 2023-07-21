@@ -1011,30 +1011,30 @@ void VulkanApp::LoadObjects()
 void VulkanApp::initVulkan() {
 	camera.setCamera(glm::vec3(0.0f, 3.0f, 5.0f), glm::vec3(0.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, static_cast<float>(WIDTH), static_cast<float>(HEIGHT), NEAR_PLANE, FAR_PLANE);
 	
-#if FEATURE_OVR
+#if 0
 	initOVR();
+
+	createInstance();
+	setupDebugCallback();
+	createSurface();
+
+#if FEATURE_OVR
+	if (bRenderToHmd)
+	{
+		ovr_GetSessionPhysicalDeviceVk(session, luid, instance, &physicalDevice);
+	}
+	else
 #endif
+	{
+		pickPhysicalDevice();
+	}
 
-	//createInstance();
-	//setupDebugCallback();
-	//createSurface();
-
-//#if FEATURE_OVR
-//	if (bRenderToHmd)
-//	{
-//		ovr_GetSessionPhysicalDeviceVk(session, luid, instance, &physicalDevice);
-//	}
-//	else
-//#endif
-//	{
-//		pickPhysicalDevice();
-//	}
-//
-//	createLogicalDevice();
+	createLogicalDevice();
 
 #if FEATURE_OVR
 	// Let the compositor know which queue to synchronize with
 	ovr_SetSynchonizationQueueVk(session, presentQueue);
+#endif
 #endif
 
 	//01. Create Swapchains
@@ -1062,9 +1062,9 @@ void VulkanApp::initVulkan() {
 #endif
 	{
 		//createSwapChain();
-		createSwapChainImageViews();
+		//createSwapChainImageViews();
 		createFrameBufferRenderPass();
-		createFramebuffers();
+		//createFramebuffers();
 	}
 
 
@@ -1617,31 +1617,31 @@ void VulkanApp::initVulkan() {
 //	}
 //}
 
-bool VulkanApp::checkValidationLayerSupport()
-{
-	uint32_t layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-	std::vector<VkLayerProperties> availableLayers(layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-	for (const char* layerName : validationLayers) {
-		bool layerFound = false;
-
-		for (const auto& layerProperties : availableLayers) {
-			if (strcmp(layerName, layerProperties.layerName) == 0) {
-				layerFound = true;
-				break;
-			}
-		}
-
-		if (!layerFound) {
-			return false;
-		}
-	}
-
-	return true;
-}
+//bool VulkanApp::checkValidationLayerSupport()
+//{
+//	uint32_t layerCount;
+//	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+//
+//	std::vector<VkLayerProperties> availableLayers(layerCount);
+//	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+//
+//	for (const char* layerName : validationLayers) {
+//		bool layerFound = false;
+//
+//		for (const auto& layerProperties : availableLayers) {
+//			if (strcmp(layerName, layerProperties.layerName) == 0) {
+//				layerFound = true;
+//				break;
+//			}
+//		}
+//
+//		if (!layerFound) {
+//			return false;
+//		}
+//	}
+//
+//	return true;
+//}
 
 #if FEATURE_OVR
 //OCULUS SDK
