@@ -122,10 +122,10 @@ public:
 	
 	//QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
-	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes);
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+	//SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+	//VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+	//VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes);
+	//VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	
 	//void createSwapChain();
 	void reCreateSwapChain();  // also creates
@@ -140,10 +140,9 @@ public:
 	void createFrameBufferCommandPool();
 	void createFrameBufferCommandBuffers();
 
-	void createFramebufferDescriptorSetLayout();
-	void createFramebufferDescriptorPool();
-	void createFramebufferDescriptorSet();
-
+	//void createFramebufferDescriptorSetLayout();
+	//void createFramebufferDescriptorPool();
+	//void createFramebufferDescriptorSet();
 
 	void createGbuffers();
 	void createSceneBuffer();
@@ -160,6 +159,7 @@ public:
 
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);  // Helper for createImage
 
 	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
 	void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);
@@ -167,12 +167,11 @@ public:
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool commandPool);
 	void transitionMipmapImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange mipSubRange, VkCommandPool commandPool);
 
-	void createDepthResources();
+	//void createDepthResources();
+	//VkFormat findDepthFormat();
+	//VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
-	VkFormat findDepthFormat();
 
 	bool hasStencilComponent(VkFormat format);
 
@@ -284,7 +283,7 @@ public:
 	//std::vector<VkFramebuffer> swapChainFramebuffers;
 	// Taken care of by VulkanExampleBase::frameBuffers?
 	//VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
+	//VkExtent2D swapChainExtent;
 
 	VkQueue objectDrawQueue;
 	VkQueue TagQueue;
@@ -307,7 +306,7 @@ public:
 	//std::vector<VkCommandBuffer> frameBufferCommandBuffers2;  // VR, right eye
 
 	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
+	//VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
 
@@ -343,6 +342,7 @@ public:
 
 	//VR BARREL AND ABERRATION
 	HDRHighlightMaterial* BarrelAndAberrationPostProcessMaterial;
+
 	FinalRenderingMaterial* frameBufferMaterial;
 
 
@@ -354,15 +354,18 @@ public:
 	VkCommandBuffer deferredCommandBuffer;
 	VkFramebuffer deferredFrameBuffer;
 
-	// Like: depthStencil
-	std::vector<VkImage> gBufferImages;
-	std::vector<VkDeviceMemory> gBufferImageMemories;
-	std::vector<VkImageView>  gBufferImageViews;
 
-	// Like: depthStencil
+
+	// TODO: use std::vector<vks::Texture2D>
+	std::vector<VkImage> gBufferImages;
+	std::vector<VkImageView>  gBufferImageViews;
+	std::vector<VkDeviceMemory> gBufferImageMemories;
+
+	// TODO: use vks::Texture2D
 	VkImage sceneImage;
-	VkDeviceMemory sceneImageMemories;
 	VkImageView sceneImageView;
+	VkDeviceMemory sceneImageMemories;
+
 
 	VkSemaphore objectDrawSemaphore;
 	VkSemaphore imageAvailableSemaphore;

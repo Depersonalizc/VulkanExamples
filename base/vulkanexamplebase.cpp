@@ -2860,6 +2860,7 @@ void VulkanExampleBase::windowResize()
 	vkDestroyImage(device, depthStencil.image, nullptr);
 	vkFreeMemory(device, depthStencil.mem, nullptr);
 	setupDepthStencil();
+
 	for (uint32_t i = 0; i < frameBuffers.size(); i++) {
 		vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
 	}
@@ -2875,6 +2876,7 @@ void VulkanExampleBase::windowResize()
 	// references to the recreated frame buffer
 	destroyCommandBuffers();
 	createCommandBuffers();
+
 	buildCommandBuffers();
 	
 	// SRS - Recreate fences in case number of swapchain images has changed on resize

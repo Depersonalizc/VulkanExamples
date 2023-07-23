@@ -1003,12 +1003,12 @@ void VulkanApp::LoadObjects()
 	voxelizator.setQueue(objectDrawQueue, TagQueue, AllocationQueue, MipmapQueue);
 	voxelizator.initMaterial();
 
-
 	//voxelRenderMaterial->createVoxelInfoBuffer(voxelizator.thisObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE);
 }
 
 
-void VulkanApp::initVulkan() {
+void VulkanApp::initVulkan() 
+{
 	camera.setCamera(glm::vec3(0.0f, 3.0f, 5.0f), glm::vec3(0.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, static_cast<float>(WIDTH), static_cast<float>(HEIGHT), NEAR_PLANE, FAR_PLANE);
 	
 #if 0
@@ -1063,7 +1063,7 @@ void VulkanApp::initVulkan() {
 	{
 		//createSwapChain();
 		//createSwapChainImageViews();
-		createFrameBufferRenderPass();
+		//createFrameBufferRenderPass();
 		//createFramebuffers();
 	}
 
@@ -1184,12 +1184,13 @@ void VulkanApp::initVulkan() {
 
 	postProcessStages.push_back(LastPostProcess);
 
+	//postProcessStages.push_back(VoxelRenderProcess);
+
 	//VR BARREL AND ABERRATION
 	//postProcessStages.push_back(BarrelAndAberrationPostProcess);
 
-	//[Stage] Frame buffer
-	createFrameBufferCommandPool();
-	
+	postProcessStages.push_back(LastPostProcess);
+
 
 	
 	//03. Load Assets
@@ -1311,7 +1312,6 @@ void VulkanApp::initVulkan() {
 
 	//[Objects]
 	LoadObjects();
-
 
 	offScreenPlane = new singleTriangular;
 	offScreenPlane->LoadFromFilename(device, physicalDevice, frameBufferCommandPool, lightingQueue, "offScreenPlane");
@@ -1737,26 +1737,27 @@ void  VulkanApp::createFramebufferDescriptorSetLayout()
 
 void  VulkanApp::createFramebufferDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[0].descriptorCount = 1;
 
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[1].descriptorCount = 1;
+	poolSizes[1].descriptorCount = 2;
 
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[2].descriptorCount = 1;
+	//poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	//poolSizes[2].descriptorCount = 1;
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(poolSizes.size()) - 1;
+	poolInfo.maxSets = 3;
 
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create descriptor pool!");
 	}
+
 }
 
 void  VulkanApp::createFramebufferDescriptorSet()
@@ -2157,267 +2158,126 @@ void VulkanApp::reCreateSwapChain()
 {
 	vkDeviceWaitIdle(device);
 
-	cleanUpSwapChain();
+	cleanUpSwapChainAtResize();
+	//cleanUpSwapChain();
 
 	standardShadow.cleanUp();
+	standardShadow.createImages(VK_FORMAT_R16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	standardShadow.createRenderPass();
+	standardShadow.createDepthResources();
+	standardShadow.createFramebuffer();
+	standardShadow.createCommandBuffers();
 
-	//createSwapChain();
+
 	//01. Create Swapchains
-#if FEATURE_OVR
-	if (bRenderToHmd) 
 	{
-		swapChainImageFormat = oculusSwapFormat;
-		swapChainExtent = swapExtent;
-		createFrameBufferRenderPass();
-		oculusRenderPass.pass = frameBufferRenderPass; 
-		textureSwapChain.Create(session, swapExtent, oculusRenderPass, VK_NULL_HANDLE, device);
-		//for (auto& tex : textureSwapChain.texElements) {
-		//	swapChainImages.push_back(tex.image);
-		//	swapChainImageViews.push_back(tex.view);
-		//	swapChainFramebuffers.push_back(tex.fb.fb);
-		//}
-		swapChainImages.resize(textureSwapChain.texElements.size());
-		swapChainImageViews.resize(textureSwapChain.texElements.size());
-		swapChainFramebuffers.resize(textureSwapChain.texElements.size());
-		for (int i = 0; i < textureSwapChain.texElements.size(); ++i) {
-			auto& tex = textureSwapChain.texElements[i];
-			swapChainImages[i]			= tex.image;
-			swapChainImageViews[i]		= tex.view;
-			swapChainFramebuffers[i]	= tex.fb.fb;
-		}
-		initOVRLayer();
-	}
-	else
-#endif
-	{
-		createSwapChain();
+		createSwapChain();  // vkCreateSwapchainKHR
 		createSwapChainImageViews();
-		createFrameBufferRenderPass();
 		createFramebuffers();
 	}
 
 	createGbuffers();
-	createSceneBuffer();
+	createSceneBuffer();  // scene image
 	createImageViews();
-	//createSwapChainImageViews();
-
-
-
-	
-	standardShadow.createImages(VK_FORMAT_R16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	//sceneStage->createImages();
-
-	for (size_t i = 0; i < postProcessStages.size(); i++)
 	{
-		PostProcess* thisPostProcess = postProcessStages[i];	
-		thisPostProcess->vrMode = bVRmode;
-		thisPostProcess->createImages();
+		createDepthResources();
 	}
-	
-
-	//REDNER PASS
-	createDeferredRenderPass();
-
-	standardShadow.createRenderPass();
+	createDeferredFramebuffer();
 
 	for (size_t i = 0; i < postProcessStages.size(); i++)
 	{
 		PostProcess* thisPostProcess = postProcessStages[i];
-		if (!thisPostProcess->isCSPostProcess)
-			thisPostProcess->createRenderPass();
+		thisPostProcess->createImages();
+		thisPostProcess->createFramebuffer();
 	}
-	
-	//createFrameBufferRenderPass();
-	
 
-	createDepthResources();
-	standardShadow.createDepthResources();
-
-	//postProcessStages[7]->createDepthResources();
 
 	//Object Material
 	for (size_t i = 0; i < materialManager.size(); i++)
 	{
 		Material* tempMat = materialManager[i];
-
-		ObjectDrawMaterial* tempObjectDrawMaterial = dynamic_cast<ObjectDrawMaterial *>(tempMat);
+		ObjectDrawMaterial* tempObjectDrawMaterial = dynamic_cast<ObjectDrawMaterial*>(tempMat);
 
 		if (tempObjectDrawMaterial != NULL)
 		{
-			materialManager[i]->vrMode = bVRmode;
-			materialManager[i]->connectRenderPass(deferredRenderPass);
+			//materialManager[i]->vrMode = bVRmode;
+			//materialManager[i]->connectRenderPass(deferredRenderPass);
 			materialManager[i]->createGraphicsPipeline(swapChainExtent);
 		}
 	}
 
-	for (size_t i = 0; i < objectManager.size(); i++)
-	{
-		objectManager[i]->shadowMaterial->updateDescriptorSet();
-		objectManager[i]->shadowMaterial->connectRenderPass(standardShadow.renderPass);
-		objectManager[i]->shadowMaterial->createGraphicsPipeline(glm::vec2(standardShadow.Extent2D.width, standardShadow.Extent2D.height), glm::vec2(0.0, 0.0));
-	}
-
-	
-	voxelConetracingMaterial->vrMode = bVRmode;
 	voxelConetracingMaterial->setImageViews(sceneStage->outputImageView, depthImageView, gBufferImageViews[NORMAL_COLOR], gBufferImageViews[SPECULAR_COLOR], &voxelizator.albedo3DImageViewSet, standardShadow.outputImageView);
 	voxelConetracingMaterial->updateDescriptorSet();
-	voxelConetracingMaterial->connectRenderPass(postProcessStages[0]->renderPass);
 	voxelConetracingMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[0]->pExtent2D->width, postProcessStages[0]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	
-	lightingMaterial->vrMode = bVRmode;
-	lightingMaterial->setGbuffers(&gBufferImageViews, depthImageView, standardShadow.outputImageView, postProcessStages[0]->outputImageView );
+
+	lightingMaterial->setGbuffers(&gBufferImageViews, depthImageView, standardShadow.outputImageView, postProcessStages[0]->outputImageView);  // views
 	lightingMaterial->updateDescriptorSet();
-	lightingMaterial->connectRenderPass(sceneStage->renderPass);
 	lightingMaterial->createGraphicsPipeline(swapChainExtent);
 
 
-		for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
-		{
-			debugDisplayMaterials[i]->vrMode = bVRmode;
-			debugDisplayMaterials[i]->setDubugBuffers(&gBufferImageViews, depthImageView, postProcessStages[0]->outputImageView, standardShadow.outputImageView);
-			debugDisplayMaterials[i]->updateDescriptorSet();
-			debugDisplayMaterials[i]->connectRenderPass(frameBufferRenderPass);
-		}
+	for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
+	{
+		debugDisplayMaterials[i]->setDubugBuffers(&gBufferImageViews, depthImageView, postProcessStages[0]->outputImageView, standardShadow.outputImageView);
+		debugDisplayMaterials[i]->updateDescriptorSet(); // pImageInfo
+	}
+	float debugWidth = swapChainExtent.width * 0.25f;
+	float debugHeight = swapChainExtent.height * 0.25f;
+	debugDisplayMaterials[0]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, 0.0));
+	debugDisplayMaterials[1]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, 0.0));
+	debugDisplayMaterials[2]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, 0.0));
+	debugDisplayMaterials[3]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, 0.0));
+	debugDisplayMaterials[4]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight));
+	debugDisplayMaterials[5]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 2.0));
+	debugDisplayMaterials[6]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight));
+	debugDisplayMaterials[7]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 2.0));
+	debugDisplayMaterials[8]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 3.0));
+	debugDisplayMaterials[9]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, debugHeight * 3.0));
+	debugDisplayMaterials[10]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, debugHeight * 3.0));
+	debugDisplayMaterials[11]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 3.0));
 
-		float debugWidth = swapChainExtent.width * 0.25f;
-		float debugHeight = swapChainExtent.height * 0.25f;
 
-		if (bVRmode)
-			debugWidth *= 0.5f;
 
-		debugDisplayMaterials[0]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, 0.0));
-		debugDisplayMaterials[1]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, 0.0));
-		debugDisplayMaterials[2]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, 0.0));
-		debugDisplayMaterials[3]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, 0.0));
-		debugDisplayMaterials[4]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight));
-		debugDisplayMaterials[5]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 2.0));
-		debugDisplayMaterials[6]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight));
-		debugDisplayMaterials[7]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 2.0));
-		debugDisplayMaterials[8]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 3.0));
-		debugDisplayMaterials[9]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, debugHeight * 3.0));
-		debugDisplayMaterials[10]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, debugHeight * 3.0));
-		debugDisplayMaterials[11]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 3.0));
-	
-
-	
 	//[postProcess]
-	hdrHighlightMaterial->vrMode = bVRmode;
 	hdrHighlightMaterial->setImageViews(sceneStage->outputImageView, depthImageView);
 	hdrHighlightMaterial->updateDescriptorSet();
-	hdrHighlightMaterial->connectRenderPass(postProcessStages[2]->renderPass);
 	hdrHighlightMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[2]->pExtent2D->width, postProcessStages[2]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	HBMaterial->vrMode = bVRmode;
 	HBMaterial->setImageViews(postProcessStages[2]->outputImageView, depthImageView);
 	HBMaterial->updateDescriptorSet();
-	HBMaterial->connectRenderPass(postProcessStages[3]->renderPass);
 	HBMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[3]->pExtent2D->width, postProcessStages[3]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	VBMaterial->vrMode = bVRmode;
 	VBMaterial->setImageViews(postProcessStages[3]->outputImageView, depthImageView);
 	VBMaterial->updateDescriptorSet();
-	VBMaterial->connectRenderPass(postProcessStages[4]->renderPass);
 	VBMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[4]->pExtent2D->width, postProcessStages[4]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	HBMaterial2->vrMode = bVRmode;
 	HBMaterial2->setImageViews(postProcessStages[4]->outputImageView, depthImageView);
 	HBMaterial2->updateDescriptorSet();
-	HBMaterial2->connectRenderPass(postProcessStages[5]->renderPass);
 	HBMaterial2->createGraphicsPipeline(glm::vec2(postProcessStages[5]->pExtent2D->width, postProcessStages[5]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	VBMaterial2->vrMode = bVRmode;
 	VBMaterial2->setImageViews(postProcessStages[5]->outputImageView, depthImageView);
 	VBMaterial2->updateDescriptorSet();
-	VBMaterial2->connectRenderPass(postProcessStages[6]->renderPass);
 	VBMaterial2->createGraphicsPipeline(glm::vec2(postProcessStages[6]->pExtent2D->width, postProcessStages[6]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	/*
-	compHBMaterial->vrMode = bVRmode;
-	compHBMaterial->setImageViews(postProcessStages[2]->outputImageView, postProcessStages[3]->outputImageView);
-	compHBMaterial->updateDescriptorSet();
-	compHBMaterial->updateDispatchSize(glm::ivec3(1, static_cast<int>(postProcessStages[3]->getImageSize().y), 1));
-	compHBMaterial->createComputePipeline();
-
-	compVBMaterial->vrMode = bVRmode;
-	compVBMaterial->setImageViews(postProcessStages[3]->outputImageView, postProcessStages[4]->outputImageView);
-	compVBMaterial->updateDescriptorSet();
-	compVBMaterial->updateDispatchSize(glm::ivec3(static_cast<int>(postProcessStages[4]->getImageSize().x), 1, 1));
-	compVBMaterial->createComputePipeline();
-
-	compHBMaterial2->vrMode = bVRmode;
-	compHBMaterial2->setImageViews(postProcessStages[4]->outputImageView, postProcessStages[5]->outputImageView);
-	compHBMaterial2->updateDescriptorSet();
-	compHBMaterial2->updateDispatchSize(glm::ivec3(1, static_cast<int>(postProcessStages[5]->getImageSize().y), 1));
-	compHBMaterial2->createComputePipeline();
-
-	compVBMaterial2->vrMode = bVRmode;
-	compVBMaterial2->setImageViews(postProcessStages[5]->outputImageView, postProcessStages[6]->outputImageView);
-	compVBMaterial2->updateDescriptorSet();
-	compVBMaterial2->updateDispatchSize(glm::ivec3(static_cast<int>(postProcessStages[6]->getImageSize().x), 1, 1));
-	compVBMaterial2->createComputePipeline();
-	*/
-
-	/*
-	voxelRenderMaterial->vrMode = bVRmode;
-
-	voxelRenderMaterial->updateDescriptorSet();
-	voxelRenderMaterial->connectRenderPass(postProcessStages[7]->renderPass);
-	voxelRenderMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[7]->pExtent2D->width, postProcessStages[7]->pExtent2D->height), glm::vec2(0.0, 0.0));
-	*/
-
-	
-
-
-	lastPostProcessMaterial->vrMode = bVRmode;
 	lastPostProcessMaterial->setImageViews(sceneStage->outputImageView, postProcessStages[6]->outputImageView, depthImageView);
 	lastPostProcessMaterial->updateDescriptorSet();
-	lastPostProcessMaterial->connectRenderPass(postProcessStages[7]->renderPass);
 	lastPostProcessMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[7]->pExtent2D->width, postProcessStages[7]->pExtent2D->height), glm::vec2(0.0, 0.0));
 
-	
 
-	//VR BARREL AND ABERRATION
-	/*
-	BarrelAndAberrationPostProcessMaterial->vrMode = bVRmode;
-	BarrelAndAberrationPostProcessMaterial->setImageViews(postProcessStages[7]->outputImageView, depthImageView);
-	BarrelAndAberrationPostProcessMaterial->updateDescriptorSet();
-	BarrelAndAberrationPostProcessMaterial->connectRenderPass(postProcessStages[8]->renderPass);
-	BarrelAndAberrationPostProcessMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[8]->pExtent2D->width, postProcessStages[8]->pExtent2D->height), glm::vec2(0.0, 0.0));
-	
-	
-	//VR BARREL AND ABERRATION
-	BarrelAndAberrationPostProcessMaterial->vrMode = bVRmode;
-	BarrelAndAberrationPostProcessMaterial->setImageViews(postProcessStages[6]->outputImageView, depthImageView);
-	BarrelAndAberrationPostProcessMaterial->updateDescriptorSet();
-	BarrelAndAberrationPostProcessMaterial->connectRenderPass(postProcessStages[7]->renderPass);
-	BarrelAndAberrationPostProcessMaterial->createGraphicsPipeline(glm::vec2(postProcessStages[7]->pExtent2D->width, postProcessStages[7]->pExtent2D->height), glm::vec2(0.0, 0.0));
-	*/
-
-	frameBufferMaterial->vrMode = bVRmode;
-	//frameBufferMaterial->setImageViews(postProcessStages.back()->outputImageView, depthImageView);
 	frameBufferMaterial->setImageViews(theLastPostProcess->outputImageView, depthImageView);
+	//frameBufferMaterial->setImageViews(postProcessStages.back()->outputImageView, depthImageView);
 	//frameBufferMaterial->setImageViews(standardShadow.outputImageView, depthImageView);
 	//frameBufferMaterial->setImageViews(voxelizator.outputImageView, depthImageView);
-	
 	frameBufferMaterial->updateDescriptorSet();
-	frameBufferMaterial->connectRenderPass(frameBufferRenderPass);
 	frameBufferMaterial->createGraphicsPipeline(glm::vec2(swapChainExtent.width, swapChainExtent.height), glm::vec2(0.0, 0.0));
 
 
-	createDeferredFramebuffer();
+	// Build command buffers
 	createDeferredCommandBuffers();
-	
-	standardShadow.createFramebuffer();
-	standardShadow.createCommandBuffers();
 
-
-	for (auto& postProcess : postProcessStages) {
-		if (!postProcess->isCSPostProcess)
-			postProcess->createFramebuffer();
+	for (auto& postProcess : postProcessStages)
 		postProcess->createCommandBuffers();
-	}
-	//createFramebuffers();
+
 	createFrameBufferCommandBuffers();
 }
 
@@ -3097,15 +2957,18 @@ void VulkanApp::createDeferredCommandPool()
 
 void VulkanApp::createDeferredCommandBuffers()
 {
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = deferredCommandPool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = 1;
-
-	if (vkAllocateCommandBuffers(device, &allocInfo, &deferredCommandBuffer) != VK_SUCCESS)
+	// VulkanExampleBase::vulkanDevice::createCommandBuffer
 	{
-		throw std::runtime_error("failed to allocate command buffers!");
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = deferredCommandPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+
+		if (vkAllocateCommandBuffers(device, &allocInfo, &deferredCommandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to allocate command buffers!");
+		}
 	}
 
 	VkCommandBufferBeginInfo beginInfo = {};
@@ -3129,12 +2992,14 @@ void VulkanApp::createDeferredCommandBuffers()
 	renderPassInfo.framebuffer = deferredFrameBuffer;
 	renderPassInfo.renderArea.offset = { 0, 0 };
 
+#if FEATURE_OVR
 	if (bVRmode)
 	{
 		renderPassInfo.renderArea.extent = swapChainExtent;
 		renderPassInfo.renderArea.extent.width /= 2;		
 	}
 	else
+#endif
 	{
 		renderPassInfo.renderArea.extent = swapChainExtent;
 	}
@@ -3244,7 +3109,7 @@ void VulkanApp::createFrameBufferCommandBuffers()  // VulkanExample::buildComman
 
 		vkCmdDrawIndexed(frameBufferCommandBuffers[i], static_cast<uint32_t>(offScreenPlane->indices.size()), 1, 0, 0, 0);
 
-			
+		
 		if (bDeubDisply)
 		{
 			for (size_t k = 0; k < NUM_DEBUGDISPLAY; k++)
@@ -3369,32 +3234,29 @@ void VulkanApp::drawFrame(float deltaTime)
 
 	//frameQueue
 	{
-		VkSemaphore postProcessSignalSemaphores[] = { postProcessSemaphore };
-
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &currentSemaphore;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &frameBufferCommandBuffers[imageIndex];
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = postProcessSignalSemaphores;
+		submitInfo.pSignalSemaphores = &postProcessSemaphore;
 
-		vkQueueWaitIdle(presentQueue);
+		//vkQueueWaitIdle(presentQueue);
 		if (vkQueueSubmit(presentQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 	}
 
-	//presentQueue
+	//presentQueue  TODO: VulkanExampleBase::submitFrame()
 	{
-		VkSemaphore postProcessSignalSemaphores[] = { postProcessSemaphore };
 		VkSwapchainKHR swapChains[] = { swapChain };
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = postProcessSignalSemaphores;
+		presentInfo.pWaitSemaphores = &postProcessSemaphore;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &imageIndex;
@@ -3724,10 +3586,13 @@ void VulkanApp::updateUniformBuffers(unsigned int EYE, float deltaTime)
 
 void VulkanApp::cleanUpSwapChain()
 {
-	//vkDestroyImageView(device, depthImageView, nullptr);
-	//vkDestroyImage(device, depthImage, nullptr);
-	//vkFreeMemory(device, depthImageMemory, nullptr);
-	
+#define INBASE 0
+
+#if INBASE  // windowResize()
+	vkDestroyImageView(device, depthImageView, nullptr);
+	vkDestroyImage(device, depthImage, nullptr);
+	vkFreeMemory(device, depthImageMemory, nullptr);
+#endif
 
 	for (size_t i = 0; i < postProcessStages.size(); i++)
 	{
@@ -3737,8 +3602,6 @@ void VulkanApp::cleanUpSwapChain()
 		vkDestroyFramebuffer(device, thisPostProcess->frameBuffer, nullptr);
 		vkFreeCommandBuffers(device, thisPostProcess->commandPool, 1, &thisPostProcess->commandBuffer);
 	}
-
-	
 
 	//delete Scene
 	vkFreeMemory(device, sceneImageMemories, nullptr);
@@ -3767,57 +3630,62 @@ void VulkanApp::cleanUpSwapChain()
 		vkDestroyImage(device, gBufferImages[i], nullptr);
 	}
 	
-	//for (size_t i = 0; i < swapChainFramebuffers.size(); i++)
-	//{
-	//	vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
-	//}
+#if INBASE  // windowResize()
+	for (size_t i = 0; i < swapChainFramebuffers.size(); i++)
+	{
+		vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+	}
+#endif
 
 	vkDestroyFramebuffer(device, deferredFrameBuffer, nullptr);
-
 	vkFreeCommandBuffers(device, deferredCommandPool, 1, &deferredCommandBuffer);
+
+#if INBASE  // windowResize() -> destroyCommandBuffers()
 	vkFreeCommandBuffers(device, frameBufferCommandPool, static_cast<uint32_t>(frameBufferCommandBuffers.size()), frameBufferCommandBuffers.data());
 	vkFreeCommandBuffers(device, frameBufferCommandPool, static_cast<uint32_t>(frameBufferCommandBuffers2.size()), frameBufferCommandBuffers2.data());
-	
-	for (size_t i = 0; i < materialManager.size(); i++)
+#endif
+
+	// No need when resize
 	{
-		materialManager[i]->cleanPipeline();
+		for (size_t i = 0; i < materialManager.size(); i++)
+		{
+			materialManager[i]->cleanPipeline();
+		}
+
+		for (size_t i = 0; i < objectManager.size(); i++)
+		{
+			objectManager[i]->shadowMaterial->cleanPipeline();
+		}
+
+		for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
+		{
+			debugDisplayMaterials[i]->cleanPipeline();
+		}
+
+		frameBufferMaterial->cleanPipeline();  // destroy pipeline and pipelinelayout of material
+
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
+		vkDestroyRenderPass(device, deferredRenderPass, nullptr);
+
+		for (size_t i = 0; i < postProcessStages.size(); i++)
+		{
+			PostProcess* thisPostProcess = postProcessStages[i];
+			thisPostProcess->material->cleanPipeline();
+			vkDestroyRenderPass(device, thisPostProcess->renderPass, nullptr);
+		}
+
+		vkDestroyRenderPass(device, frameBufferRenderPass, nullptr);
 	}
 
-	for (size_t i = 0; i < objectManager.size(); i++)
-	{
-		objectManager[i]->shadowMaterial->cleanPipeline();
-	}
-
-	for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
-	{
-		debugDisplayMaterials[i]->cleanPipeline();
-	}	
-
-	frameBufferMaterial->cleanPipeline();
-	
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-
-	
-	vkDestroyRenderPass(device, deferredRenderPass, nullptr);
-
-
-	for (size_t i = 0; i < postProcessStages.size(); i++)
-	{
-		PostProcess* thisPostProcess = postProcessStages[i];
-		thisPostProcess->material->cleanPipeline();
-		vkDestroyRenderPass(device, thisPostProcess->renderPass, nullptr);
-	}
-	
-
-	vkDestroyRenderPass(device, frameBufferRenderPass, nullptr);
-
+#if INBASE  // windowResize() -> setupSwapChain()
 	for (size_t i = 0; i < swapChainImageViews.size(); i++)
 	{
 		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
 	}
-
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
+#endif
 }
 
 void VulkanApp::cleanUp()
