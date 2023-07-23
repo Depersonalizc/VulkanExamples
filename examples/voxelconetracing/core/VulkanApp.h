@@ -1,27 +1,19 @@
 #pragma once
 
-#if FEATURE_OVR
-// Include the OculusVR SDK
-#include <OVR_CAPI_Vk.h>
-#include <Extras/OVR_Math.h>
-#include "OculusSDKClasses.h"
-#endif
-
-#include "VulkanDebug.h"
+//#include "VulkanDebug.h"
 #include "VulkanQueue.h"
-#include "VulkanSwapChain.h"
+//#include "VulkanSwapChain.h"
 
 #include "Vertex.h"
 #include "PostProcess.h"
+#include "Shadow.h"
+#include "Voxelization.h"
+
 #include "../assets/Material.h"
 #include "../assets/Geometry.h"
 #include "../actors/Object.h"
 #include "../actors/Camera.h"
 #include "../actors/Light.h"
-
-#include "../core/Shadow.h"
-
-#include "Voxelization.h"
 
 #include <sstream>
 
@@ -74,36 +66,6 @@ public:
 	//long long frameIndex = 0;
 	VkSemaphore mipMapStartSemaphore;
 
-#if FEATURE_OVR
-	////////////////////////
-	/////// Oculus VR //////
-	////////////////////////
-	//vars
-	ovrSession session;
-	ovrFovPort g_EyeFov[2];
-	ovrGraphicsLuid luid;
-	ovrHmdDesc desc;
-	ovrSizei resolution;
-	glm::vec3 lastHmdPos;
-	glm::vec3 lastHmdEuler;
-	OVR::Sizei swapSize;//needed?
-	VkExtent2D swapExtent;
-	char extensionNames[4096];
-	uint32_t extensionNamesSize = sizeof(extensionNames);
-	TextureSwapChain textureSwapChain;
-	RenderPass oculusRenderPass;
-	ovrLayerEyeFov layer;
-	VkFormat oculusSwapFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	VkFormat oculusDepthFormat = VK_FORMAT_D32_SFLOAT;
-	ovrPosef eyeRenderPose[ovrEye_Count];
-	//func
-	void initOVR();
-	void initOVRLayer();
-	void shutdownOVR();
-	void queryHmdOrientationAndPosition();
-#endif
-
-
 	void initVulkan();
 	//void initWindow();
 
@@ -130,6 +92,7 @@ public:
 	//void createSwapChain();
 	void reCreateSwapChain();  // also creates
 	void cleanUpSwapChain();
+	void cleanUpSwapChainAtResize();
 
 	void createImageViews();  // GBuffer image views
 	//void createSwapChainImageViews();
@@ -137,7 +100,7 @@ public:
 	//void createFramebuffers();
 	//void createFrameBufferRenderPass();
 
-	void createFrameBufferCommandPool();
+	//void createFrameBufferCommandPool();
 	void createFrameBufferCommandBuffers();
 
 	//void createFramebufferDescriptorSetLayout();
@@ -158,22 +121,19 @@ public:
 	void createSemaphores();
 
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);  // Helper for createImage
 
-	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
-	void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool commandPool);
-	void transitionMipmapImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageSubresourceRange mipSubRange, VkCommandPool commandPool);
+	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);  // helper for transitionImageLayout
+	void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);  // helper for transitionImageLayout
+	//bool hasStencilComponent(VkFormat format);  // helper for transitionImageLayout
 
 	//void createDepthResources();
 	//VkFormat findDepthFormat();
 	//VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
-
-
-	bool hasStencilComponent(VkFormat format);
 
 	void run();
 	
@@ -272,8 +232,8 @@ public:
 	//VkDebugReportCallbackEXT callback;
 
 	//This object will be implicitly destroyed
-	//VkPhysicalDevice physicalDevice;
-	//VkDevice device;
+	VkPhysicalDevice physicalDevice;
+	VkDevice device;
 
 	// Taken care of by the VulkanExampleBase::frameBuffers, swapChain, currentBuffer(index)
 	//VkSurfaceKHR surface;
@@ -356,12 +316,12 @@ public:
 
 
 
-	// TODO: use std::vector<vks::Texture2D>
+	// TODO: use std::vector<vks::Texture2D> later
 	std::vector<VkImage> gBufferImages;
 	std::vector<VkImageView>  gBufferImageViews;
 	std::vector<VkDeviceMemory> gBufferImageMemories;
 
-	// TODO: use vks::Texture2D
+	// TODO: use vks::Texture2D later
 	VkImage sceneImage;
 	VkImageView sceneImageView;
 	VkDeviceMemory sceneImageMemories;

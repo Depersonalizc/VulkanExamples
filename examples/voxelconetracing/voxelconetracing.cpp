@@ -10,7 +10,22 @@
 #include "VulkanFrameBuffer.hpp"
 #include "VulkanglTFModel.h"
 
-#include "core/VulkanApp.h"
+/******************************/
+#include "core/VulkanQueue.h"
+
+#include "core/Vertex.h"
+#include "core/PostProcess.h"
+#include "core/Shadow.h"
+#include "core/Voxelization.h"
+
+#include "assets/Material.h"
+#include "assets/Geometry.h"
+#include "actors/Object.h"
+#include "actors/Light.h"
+#include <sstream>
+
+
+//#include "core/VulkanApp.h"
 
 
 #define VERTEX_BUFFER_BIND_ID 0
@@ -36,8 +51,6 @@
 class VulkanExample : public VulkanExampleBase
 {
 public:
-	VulkanApp app;
-
 	int32_t debugDisplayTarget = 0;
 	bool enableShadows = true;
 
