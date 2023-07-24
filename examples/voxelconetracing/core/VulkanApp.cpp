@@ -1015,7 +1015,8 @@ void VulkanApp::LoadObjects()
 
 void VulkanApp::initVulkan() 
 {
-	camera.setCamera(glm::vec3(0.0f, 3.0f, 5.0f), glm::vec3(0.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, static_cast<float>(WIDTH), static_cast<float>(HEIGHT), NEAR_PLANE, FAR_PLANE);
+	camera.setCamera(glm::vec3(0.0f, 3.0f, 5.0f), glm::vec3(0.0f, 3.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 
+		static_cast<float>(WIDTH), static_cast<float>(HEIGHT), NEAR_PLANE, FAR_PLANE);
 	
 #if 0
 	createInstance();
@@ -2584,7 +2585,8 @@ void VulkanApp::createFramebuffers()
 
 void VulkanApp::createDeferredFramebuffer()
 {
-	std::array<VkImageView, NUM_GBUFFERS + 1> attachments = { gBufferImageViews[BASIC_COLOR], gBufferImageViews[SPECULAR_COLOR], gBufferImageViews[NORMAL_COLOR], gBufferImageViews[EMISSIVE_COLOR], depthImageView };
+	std::array<VkImageView, NUM_GBUFFERS + 1> attachments = 
+	{ gBufferImageViews[BASIC_COLOR], gBufferImageViews[SPECULAR_COLOR], gBufferImageViews[NORMAL_COLOR], gBufferImageViews[EMISSIVE_COLOR], depthImageView };
 
 	VkFramebufferCreateInfo fbufCreateInfo = {};
 	fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -2803,7 +2805,7 @@ void VulkanApp::drawFrame(float deltaTime)
 
 	// Get next available index of the texture swap chain
 	{
-		result = vkAcquireNextImageKHR(device, swapChain, std::numeric_limits<uint64_t>::max(), objectDrawSemaphore, VK_NULL_HANDLE, &imageIndex);
+		result = vkAcquireNextImageKHR(device, swapChain, std::numeric_limits<uint64_t>::max(), semaphores.presentComplete, VK_NULL_HANDLE, &imageIndex);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			reCreateSwapChain();
@@ -2812,34 +2814,33 @@ void VulkanApp::drawFrame(float deltaTime)
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		{
 			throw std::runtime_error("failed to acquire swap chain image!");
-}
+		}
 	}
 
-	updateUniformBuffers(0, deltaTime);
+	updateUniformBuffers(deltaTime);
 
-
+	VkSemaphore prevSemaphore = semaphores.presentComplete;
+	VkSemaphore currentSemaphore;
 
 	//objectDrawQueue
 	{
-		VkSemaphore firstWaitSemaphores[] = { objectDrawSemaphore };
-		VkSemaphore firstSignalSemaphores[] = { imageAvailableSemaphore };
+		currentSemaphore = objectDrawCompleteSemaphore;
 
 		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = firstWaitSemaphores;
+		submitInfo.pWaitSemaphores = &prevSemaphore;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &deferredCommandBuffer;
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = firstSignalSemaphores;
+		submitInfo.pSignalSemaphores = &currentSemaphore;
 
 		if (vkQueueSubmit(objectDrawQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
-	}
 
-	VkSemaphore prevSemaphore = imageAvailableSemaphore;
-	VkSemaphore currentSemaphore;
+		prevSemaphore = currentSemaphore;
+	}
 
 	//DrawShadow
 	{
@@ -2857,11 +2858,12 @@ void VulkanApp::drawFrame(float deltaTime)
 		{
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
+
+		prevSemaphore = currentSemaphore;
 	}
 
 	//postProcessQueue
 	{
-		prevSemaphore = currentSemaphore;
 		//prevSemaphore = voxelizator.createMipmaps(prevSemaphore);
 		for (auto& postProcess : postProcessStages)
 		{
@@ -2875,24 +2877,26 @@ void VulkanApp::drawFrame(float deltaTime)
 			submitInfo.signalSemaphoreCount = 1;
 			submitInfo.pSignalSemaphores = &currentSemaphore;
 
-			prevSemaphore = currentSemaphore;
-
 			if (vkQueueSubmit(postProcess->material->queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 			{
 				throw std::runtime_error("failed to submit draw command buffer!");
 			}
+
+			prevSemaphore = currentSemaphore;
 		}
 	}
 
 	//frameQueue
 	{
+		currentSemaphore = semaphores.renderComplete;
+
 		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &currentSemaphore;
+		submitInfo.pWaitSemaphores = &prevSemaphore;
 		submitInfo.pWaitDstStageMask = waitStages;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &frameBufferCommandBuffers[imageIndex];
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &postProcessSemaphore;
+		submitInfo.pSignalSemaphores = &currentSemaphore;
 
 		//vkQueueWaitIdle(presentQueue);
 		if (vkQueueSubmit(presentQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
@@ -2901,14 +2905,14 @@ void VulkanApp::drawFrame(float deltaTime)
 		}
 	}
 
-	//presentQueue  TODO: VulkanExampleBase::submitFrame()
+	//presentQueue
 	{
 		VkSwapchainKHR swapChains[] = { swapChain };
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &postProcessSemaphore;
+		presentInfo.pWaitSemaphores = &semaphores.renderComplete;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &imageIndex;
@@ -2933,11 +2937,17 @@ void VulkanApp::createSemaphores()
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
+#if 0
 	if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
 		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &objectDrawSemaphore)     != VK_SUCCESS ||
-		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &postProcessSemaphore)    != VK_SUCCESS || 
-		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &mipMapStartSemaphore)    != VK_SUCCESS ) 
+		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &objectDrawSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &postProcessSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &mipMapStartSemaphore) != VK_SUCCESS)
+#else
+	if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &objectDrawCompleteSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores.presentComplete) != VK_SUCCESS ||
+		vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphores.renderComplete) != VK_SUCCESS)
+#endif
 	{
 		throw std::runtime_error("failed to create semaphores!");
 	}
@@ -2994,7 +3004,7 @@ void VulkanApp::mainLoop()
 	vkDeviceWaitIdle(device);
 }
 
-void VulkanApp::updateUniformBuffers(unsigned int EYE, float deltaTime)
+void VulkanApp::updateUniformBuffers(float deltaTime)
 {
 	if (bRotateMainLight)
 	{
@@ -3002,10 +3012,7 @@ void VulkanApp::updateUniformBuffers(unsigned int EYE, float deltaTime)
 		swingMainLight();
 	}
 	
-	
 	SetDirectionLightMatrices(directionLights[0], 19.0f, 5.0f, 0.0f, 20.0f);
-
-	autoCameraMoving();
 
 	UniformBufferObject ubo = {};
 	ubo.modelMat = glm::mat4(1.0);
@@ -3452,10 +3459,8 @@ void VulkanApp::cleanUp()
 	delete debugDisplayPlane;
 
 	vkDestroySemaphore(device, objectDrawSemaphore, nullptr);
-	vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 	vkDestroySemaphore(device, postProcessSemaphore, nullptr);
 	vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-	vkDestroySemaphore(device, mipMapStartSemaphore, nullptr);
 
 	vkDestroyCommandPool(device, frameBufferCommandPool, nullptr);
 

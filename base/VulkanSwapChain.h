@@ -38,8 +38,9 @@ private:
 	VkInstance instance;
 	VkDevice device;
 	VkPhysicalDevice physicalDevice;
-	VkSurfaceKHR surface;
 public:
+	VkSurfaceKHR surface;  // TODO: Move back
+
 	VkFormat colorFormat;
 	VkColorSpaceKHR colorSpace;
 	VkSwapchainKHR swapChain = VK_NULL_HANDLE;	

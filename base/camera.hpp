@@ -41,6 +41,8 @@ private:
 		{
 			matrices.view = transM * rotM;
 		}
+		matrices.viewProj = matrices.perspective * matrices.view;
+		matrices.invViewProj = glm::inverse(matrices.viewProj);
 
 		viewPos = glm::vec4(position, 0.0f) * glm::vec4(-1.0f, 1.0f, -1.0f, 1.0f);
 
@@ -64,6 +66,8 @@ public:
 	{
 		glm::mat4 perspective;
 		glm::mat4 view;
+		glm::mat4 viewProj;
+		glm::mat4 invViewProj;
 	} matrices;
 
 	struct
@@ -96,6 +100,8 @@ public:
 		if (flipY) {
 			matrices.perspective[1][1] *= -1.0f;
 		}
+		matrices.viewProj = matrices.perspective * matrices.view;
+		matrices.invViewProj = glm::inverse(matrices.viewProj);
 	};
 
 	void updateAspectRatio(float aspect)
@@ -104,6 +110,8 @@ public:
 		if (flipY) {
 			matrices.perspective[1][1] *= -1.0f;
 		}
+		matrices.viewProj = matrices.perspective * matrices.view;
+		matrices.invViewProj = glm::inverse(matrices.viewProj);
 	}
 
 	void setPosition(glm::vec3 position)

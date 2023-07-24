@@ -8,10 +8,10 @@
 #include <algorithm>
 #include <array>
 
-#if FEATURE_GLFW
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#endif
+//#if FEATURE_GLFW
+//#define GLFW_INCLUDE_VULKAN
+//#include <GLFW/glfw3.h>
+//#endif
 #include <vulkanexamplebase.h>
 
 #define GLM_FORCE_RADIANS
@@ -50,11 +50,14 @@ enum GBUFFER
 };
 
 
-#define NEAR_PLANE 0.1f
-#define FAR_PLANE 1000.0f
-
 #define NUM_GBUFFERS 4
 #define NUM_DEBUGDISPLAY 12
+
+#define DOWNSAMPLING_BLOOM 2.0f
+
+#define WORKGROUP_X_SIZE_MAX 1024
+#define WORKGROUP_Y_SIZE_MAX 1024
+#define WORKGROUP_Z_SIZE_MAX 64
 
 static bool bDeubDisply = false;
 static bool bVRmode = false;
@@ -64,11 +67,3 @@ static int autoCameraMove = -1;
 
 static uint32_t drawMode = 4;
 
-#define LEFT_EYE 0
-#define RIGHT_EYE 1
-
-#define DOWNSAMPLING_BLOOM 2.0f
-
-#define WORKGROUP_X_SIZE_MAX 1024
-#define WORKGROUP_Y_SIZE_MAX 1024
-#define WORKGROUP_Z_SIZE_MAX 64

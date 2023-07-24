@@ -19,23 +19,23 @@
 
 
 
-static bool leftMouseDown = false;
-static bool rightMouseDown = false;
-static bool middleMouseDown = false;
-
-static double previousX = 0.0;
-static double previousY = 0.0;
-
-static double oldTime = 0.0;
-static double currentTime = 0.0;
-static int fps = 0;
-static int fpstracker = 0;
-
-static std::chrono::time_point<std::chrono::steady_clock> startTime;
-static std::chrono::time_point<std::chrono::steady_clock> _oldTime;
-
-static double totalTime;
-static double deltaTime;
+//static bool leftMouseDown = false;
+//static bool rightMouseDown = false;
+//static bool middleMouseDown = false;
+//
+//static double previousX = 0.0;
+//static double previousY = 0.0;
+//
+//static double oldTime = 0.0;
+//static double currentTime = 0.0;
+//static int fps = 0;
+//static int fpstracker = 0;
+//
+//static std::chrono::time_point<std::chrono::steady_clock> startTime;
+//static std::chrono::time_point<std::chrono::steady_clock> _oldTime;
+//
+//static double totalTime;
+//static double deltaTime;
 
 static float mainLightAngle = 1.0f;
 
@@ -64,7 +64,7 @@ public:
 	//bool bRenderToHmd = false;
 	//std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 	//long long frameIndex = 0;
-	VkSemaphore mipMapStartSemaphore;
+	//VkSemaphore mipMapStartSemaphore;
 
 	void initVulkan();
 	//void initWindow();
@@ -94,7 +94,7 @@ public:
 	void cleanUpSwapChain();
 	void cleanUpSwapChainAtResize();
 
-	void createImageViews();  // GBuffer image views
+	/***DONE***/ void createImageViews();  // GBuffer image views
 	//void createSwapChainImageViews();
 
 	//void createFramebuffers();
@@ -107,27 +107,27 @@ public:
 	//void createFramebufferDescriptorPool();
 	//void createFramebufferDescriptorSet();
 
-	void createGbuffers();
-	void createSceneBuffer();
+	/***DONE***/ void createGbuffers();
+	/***DONE***/ void createSceneBuffer();
 
-	void createDeferredFramebuffer();
-	void createDeferredRenderPass();
+	/***DONE***/ void createDeferredFramebuffer();
+	/***DONE***/ void createDeferredRenderPass();
 
-	void createDeferredCommandPool();
+	//void createDeferredCommandPool();
 	void createDeferredCommandBuffers();
 
-	void drawFrame(float deltaTime);
+	/***DONE: draw()***/ void drawFrame(float deltaTime);
 
-	void createSemaphores();
+	//void createSemaphores();
 
-	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);  // Helper for createImage
+	/***DONE***/ void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	/***DONE***/ uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);  // Helper for createImage
 
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	/***DONE***/ VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool commandPool);
-	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);  // helper for transitionImageLayout
-	void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);  // helper for transitionImageLayout
+	/***DONE***/ void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool commandPool);
+	/***DONE***/ VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);  // helper for transitionImageLayout
+	/***DONE***/ void endSingleTimeCommands(VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);  // helper for transitionImageLayout
 	//bool hasStencilComponent(VkFormat format);  // helper for transitionImageLayout
 
 	//void createDepthResources();
@@ -137,34 +137,34 @@ public:
 
 	void run();
 	
-	void updateUniformBuffers(unsigned int EYE, float deltaTime);
+	/***DONE***/ void updateUniformBuffers(float deltaTime);
 
 	void mainLoop();
 
 	void cleanUp();
 
-	void getAsynckeyState();
+	//void getAsynckeyState();
 
-	VkDevice getDevice()
-	{
-		return device;
-	}
+	//VkDevice getDevice()
+	//{
+	//	return device;
+	//}
 	
 	// Assets
-	void LoadTexture(std::string path);
-	void LoadTextures();
+	/***DONE***/ void LoadTexture(std::string path);
+	/***DONE***/ void LoadTextures();
 
-	void LoadGlobalMaterials(PostProcess* vxgiPostProcess);
-	void LoadObjectMaterials();
-	void LoadObjectMaterial(std::string name, std::string albedo, std::string specular, std::string normal, std::string emissive);
-	void ConnectSponzaMaterials(Object* sponza);
+	/***DONE***/ void LoadGlobalMaterials(PostProcess* vxgiPostProcess);
+	/***DONE***/ void LoadObjectMaterials();
+	/***DONE***/ void LoadObjectMaterial(std::string name, std::string albedo, std::string specular, std::string normal, std::string emissive);
+	/***DONE***/ void ConnectSponzaMaterials(Object* sponza);
 
-	void LoadObjects();
+	/***DONE***/ void LoadObjects();
 
 	// Misc
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t obj, size_t location,	int32_t code, const char* layerPrefix, const char* msg,	void* userData);
 	
-	void switchTheLastPostProcess(unsigned int from, unsigned int to)
+	/***DONE***/ void switchTheLastPostProcess(unsigned int from, unsigned int to)
 	{
 		if (postProcessStages.size() > to)
 		{
@@ -175,51 +175,17 @@ public:
 		}
 	}
 
-	void swingMainLight()
+	/***DONE***/ void swingMainLight()
 	{
 		SwingXAxisDirectionalLight(directionLights[0].lightInfo, 1.0f, mainLightAngle, 0.5f);
 	}
 
-	void updateDrawMode()
+	/***DONE***/ void updateDrawMode()
 	{
 		void* data;
 		vkMapMemory(device, lightingMaterial->optionBufferMemory, 0, sizeof(uint32_t), 0, &data);
 		memcpy(data, &drawMode, sizeof(uint32_t));
 		vkUnmapMemory(device, lightingMaterial->optionBufferMemory);
-	}
-
-	void autoCameraMoving()
-	{
-		if (autoCameraMove >= 0)
-		{
-			float speed = 3.0f;
-			if (autoCameraMove == 0)
-			{
-				camera.UpdateOrbit(0.0f, 0.0f, -static_cast<float>(deltaTime)*speed);
-			}
-			else if (autoCameraMove == 1)
-			{
-				camera.UpdateOrbit(0.0f, 0.0f, static_cast<float>(deltaTime)*speed);
-			}
-			else if (autoCameraMove == 2)
-			{
-				camera.UpdatePosition(-static_cast<float>(deltaTime)*speed, 0.0f, 0.0f);
-			}
-			else if (autoCameraMove == 3)
-			{
-				camera.UpdatePosition(static_cast<float>(deltaTime)*speed, 0.0f, 0.0f);
-			}
-			else if (autoCameraMove == 4)
-			{
-				camera.UpdateOrbit(static_cast<float>(deltaTime)*speed, 0.0f, 0.0f);
-			}
-			else if (autoCameraMove == 5)
-			{
-				camera.UpdateOrbit(-static_cast<float>(deltaTime)*speed, 0.0f, 0.0f);
-			}
-		}
-		
-
 	}
 
 	//bool bIsRightEyeDrawing;
@@ -232,8 +198,8 @@ public:
 	//VkDebugReportCallbackEXT callback;
 
 	//This object will be implicitly destroyed
-	VkPhysicalDevice physicalDevice;
-	VkDevice device;
+	//VkPhysicalDevice physicalDevice;
+	//VkDevice device;
 
 	// Taken care of by the VulkanExampleBase::frameBuffers, swapChain, currentBuffer(index)
 	//VkSurfaceKHR surface;
@@ -265,9 +231,17 @@ public:
 	//std::vector<VkCommandBuffer> frameBufferCommandBuffers;  // same as VulkanExample::drawCmdBuffers
 	//std::vector<VkCommandBuffer> frameBufferCommandBuffers2;  // VR, right eye
 
-	VkDescriptorSetLayout descriptorSetLayout;
+	//VkDescriptorSetLayout descriptorSetLayout;
 	//VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
+	//VkDescriptorSet descriptorSet;
+
+	StandardShadow standardShadow;
+	Voxelization voxelizator;
+	std::vector<DirectionalLight> directionLights;
+
+	PostProcess* sceneStage;  //for FrameRender
+	PostProcess* theLastPostProcess;
+	std::vector<PostProcess*> postProcessStages;
 
 
 
@@ -288,10 +262,6 @@ public:
 	ComputeBlurMaterial *compHBMaterial2;
 	ComputeBlurMaterial *compVBMaterial2;
 
-
-
-	StandardShadow standardShadow;
-
 	singleTriangular* offScreenPlane;
 	singleTriangular* offScreenPlaneforPostProcess;
 	singleQuadral* debugDisplayPlane;
@@ -299,56 +269,24 @@ public:
 	std::vector<DebugDisplayMaterial*> debugDisplayMaterials;
 	LastPostProcessgMaterial* lastPostProcessMaterial;
 	VoxelRenderMaterial* voxelRenderMaterial;
-
-	//VR BARREL AND ABERRATION
-	HDRHighlightMaterial* BarrelAndAberrationPostProcessMaterial;
-
 	FinalRenderingMaterial* frameBufferMaterial;
 
-
-
-
-
 	VkRenderPass deferredRenderPass;
+#if 0
 	VkCommandPool deferredCommandPool;
+#endif
 	VkCommandBuffer deferredCommandBuffer;
 	VkFramebuffer deferredFrameBuffer;
 
-
-
 	// TODO: use std::vector<vks::Texture2D> later
 	std::vector<VkImage> gBufferImages;
-	std::vector<VkImageView>  gBufferImageViews;
+	std::vector<VkImageView> gBufferImageViews;
 	std::vector<VkDeviceMemory> gBufferImageMemories;
 
 	// TODO: use vks::Texture2D later
 	VkImage sceneImage;
 	VkImageView sceneImageView;
-	VkDeviceMemory sceneImageMemories;
-
-
-	VkSemaphore objectDrawSemaphore;
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore postProcessSemaphore;
-	VkSemaphore renderFinishedSemaphore;
-	
-
-	//uint32_t WIDTH;
-	//uint32_t HEIGHT;
-
-	//uint32_t LayerCount;
-
-	std::vector<DirectionalLight> directionLights;
-
-	std::vector<PostProcess*> postProcessStages;
-
-	Voxelization voxelizator;
-
-	//for FrameRender
-	PostProcess* sceneStage;
-	PostProcess* theLastPostProcess;
-
-	
+	VkDeviceMemory sceneImageMemories;	
 	
 };
 
