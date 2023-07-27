@@ -52,16 +52,15 @@ public:
 
 		vkDestroyRenderPass(device, renderPass, nullptr);
 		vkDestroyFramebuffer(device, frameBuffer, nullptr);
-		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);		
+		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+
+		vkDestroySemaphore(device, semaphore, nullptr);
 	}
 
 	void shutDown()
 	{
 		//cleanUp();
-		vkDestroySemaphore(device, semaphore, nullptr);
 		vkDestroyCommandPool(device, commandPool, nullptr);
-
-		
 	}
 
 	VkRenderPass renderPass;

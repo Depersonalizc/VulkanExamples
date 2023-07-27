@@ -60,7 +60,7 @@ public:
 	std::vector<DirectionalLight> directionLights;
 
 	StandardShadow standardShadow;
-	Voxelization voxelizator;
+	Voxelization voxelizer;
 
 	PostProcess* vxgiPP, * sceneStage, * hdrHighlightPP, * horizontalBlurPP, * verticalBlurPP, * horizontalBlurPP2, * verticalBlurPP2;
 	PostProcess* theLastPostProcess;
@@ -81,7 +81,7 @@ public:
 	BlurMaterial* VBMaterial2;
 
 	singleTriangular* offScreenPlane;
-	singleTriangular* offScreenPlaneforPostProcess;
+	//singleTriangular* offScreenPlaneforPostProcess;
 	singleQuadral* debugDisplayPlane;
 
 	std::vector<DebugDisplayMaterial*> debugDisplayMaterials;
@@ -145,6 +145,23 @@ public:
 	~VulkanExample()  // TODO
 	{
 		// Frame buffers
+
+		standardShadow.cleanUp();
+		AssetDatabase::GetInstance()->cleanUp();
+
+		delete voxelConetracingMaterial;  // default cleanup, TODO
+		delete lightingMaterial;
+		delete hdrHighlightMaterial;
+		delete HBMaterial;
+		delete VBMaterial;
+		delete HBMaterial2;
+		delete VBMaterial2;
+		delete lastPostProcessMaterial;
+		delete frameBufferMaterial;
+		for (auto& debugMat : debugDisplayMaterials)
+			delete debugMat;
+
+		//delete offScreenPlaneforPostProcess;
 
 		//vkDestroyPipeline(device, pipelines.deferred, nullptr);
 		//vkDestroyPipeline(device, pipelines.offscreen, nullptr);
@@ -331,7 +348,7 @@ public:
 
 		LoadTextures();
 		LoadObjectMaterials();
-		LoadObjects();    // Load object gemoetry and connect materials. !!ALSO SET voxelizator's buffer and material (TODO: separate this)
+		LoadObjects();    // Load object gemoetry and connect materials. !!ALSO SET voxelizer's buffer and material (TODO: separate this)
 		LoadPlaneGeos();
 		for (const auto& post : postProcessStages)
 		{
@@ -717,7 +734,7 @@ public:
 			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
 
 			offScreenPlane->updateVertexBuffer(offScreenUbo.InvViewProjMat);
-			offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
 
 			void* data;
 			vkMapMemory(device, lightingMaterial->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
@@ -769,7 +786,7 @@ public:
 
 			if (isVXGIMat != NULL)
 			{
-				offScreenUbo.modelMat = voxelizator.standardObject->modelMat;
+				offScreenUbo.modelMat = voxelizer.standardObject->modelMat;
 			}
 
 			offScreenUbo.viewMat = ubo.viewMat;
@@ -780,7 +797,7 @@ public:
 			offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
 			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
 
-			offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
 
 			void* data;
 			vkMapMemory(device, postProcessStages[i]->material->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
@@ -827,7 +844,7 @@ public:
 			offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
 			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
 
-			offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
 
 			void* data;
 			vkMapMemory(device, frameBufferMaterial->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
@@ -1030,11 +1047,11 @@ public:
 		debugDisplayPlane = new singleQuadral;
 		debugDisplayPlane->LoadFromFilename(device, physicalDevice, cmdPool /*frameBufferCommandPool*/, queue /*lightingQueue*/, "debugDisplayPlane");
 
-		offScreenPlaneforPostProcess = new singleTriangular;
-		offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
+		//offScreenPlaneforPostProcess = new singleTriangular;
+		//offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
 	}
 
-	// TODO: Change voxelizator.Initialize (Don't directly access surface)
+	// TODO: Change voxelizer.Initialize (Don't directly access surface)
 	void LoadObjects()
 	{
 		Object* Chromie = new Object;
@@ -1080,14 +1097,14 @@ public:
 
 
 		{
-			voxelizator.standardObject = sponza;
-			//voxelizator.standardObject = Johanna;
+			voxelizer.standardObject = sponza;
+			//voxelizer.standardObject = Johanna;
 
-			voxelizator.setMatrices();
-			//voxelizator.createBuffers(20000000);
-			glm::vec3 EX = voxelizator.standardObject->AABB.Extents * 2.0f;
-			voxelizator.createVoxelInfoBuffer(voxelizator.standardObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE, 0.01f);
-			voxelizator.initMaterial();
+			voxelizer.setMatrices();
+			//voxelizer.createBuffers(20000000);
+			glm::vec3 EX = voxelizer.standardObject->AABB.Extents * 2.0f;
+			voxelizer.createVoxelInfoBuffer(voxelizer.standardObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE, 0.01f);
+			voxelizer.initMaterial();
 		}
 	}
 
@@ -1536,7 +1553,7 @@ public:
 		//[framebuffer]
 		//frameBufferMaterial->setImageViews(standardShadow.outputImageView, depthImageView);
 		//frameBufferMaterial->setImageViews(BarrelAndAberrationPostProcess->outputImageView, depthImageView);
-		//frameBufferMaterial->setImageViews(voxelizator.outputImageView, depthImageView);
+		//frameBufferMaterial->setImageViews(voxelizer.outputImageView, depthImageView);
 		frameBufferMaterial->setImageViews(theLastPostProcess->outputImageView, depthStencil.view);
 		frameBufferMaterial->createDescriptorSet();
 		frameBufferMaterial->connectRenderPass(renderPass);
@@ -1612,8 +1629,8 @@ public:
 		voxelConetracingMaterial->setShaderPaths(getShaderPath("voxelConeTracing.vert.spv"), getShaderPath("voxelConeTracing.frag.spv"), "", "", "", "");
 		voxelConetracingMaterial->setScreenScale(vxgiPP->getScreenScale());
 		// Depends on voxelizer
-		voxelConetracingMaterial->setImageViews(sceneStage->outputImageView, depthStencil.view, gBufferImageViews[NORMAL_COLOR], gBufferImageViews[SPECULAR_COLOR], &voxelizator.albedo3DImageViewSet, standardShadow.outputImageView);
-		voxelConetracingMaterial->setBuffers(voxelizator.voxelInfoBuffer, lightingMaterial->shadowConstantBuffer);
+		voxelConetracingMaterial->setImageViews(sceneStage->outputImageView, depthStencil.view, gBufferImageViews[NORMAL_COLOR], gBufferImageViews[SPECULAR_COLOR], &voxelizer.albedo3DImageViewSet, standardShadow.outputImageView);
+		voxelConetracingMaterial->setBuffers(voxelizer.voxelInfoBuffer, lightingMaterial->shadowConstantBuffer);
 		voxelConetracingMaterial->createDescriptorSet();
 		voxelConetracingMaterial->connectRenderPass(vxgiPP->renderPass);
 		voxelConetracingMaterial->createGraphicsPipeline(glm::vec2(vxgiPP->width, vxgiPP->height), glm::vec2(0.0, 0.0));
@@ -1876,7 +1893,10 @@ public:
 		//standardShadow.setExtent(16384, 4096);
 		standardShadow.setExtent(SHADOWMAP_WIDTH, SHADOWMAP_HEIGHT);
 		standardShadow.createImages(VK_FORMAT_R16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		standardShadow.createCommandPool();
+		{
+			//standardShadow.createCommandPool();
+			standardShadow.commandPool = cmdPool;
+		}
 		standardShadow.createRenderPass();
 		standardShadow.createDepthResources();
 		standardShadow.createFramebuffer();
@@ -1885,13 +1905,16 @@ public:
 
 	void voxelizerSetup()
 	{
-		voxelizator.Initialize(device, physicalDevice, swapChain.surface, 1, uint32_t(floor(log2(VOXEL_SIZE))), glm::vec2(1.0, 1.0));
-		voxelizator.createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		voxelizator.createCommandPool();
-		voxelizator.setQueue(queue /*objectDrawQueue*/, queue /*TagQueue*/, queue /*AllocationQueue*/, queue /*MipmapQueue*/);
-		voxelizator.createRenderPass();
-		voxelizator.createFramebuffer();
-		voxelizator.createSemaphore();
+		voxelizer.Initialize(device, physicalDevice, swapChain.surface, 1, uint32_t(floor(log2(VOXEL_SIZE))), glm::vec2(1.0, 1.0));
+		voxelizer.createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		{
+			//voxelizer.createCommandPool();
+			voxelizer.commandPool = cmdPool;
+		}
+		voxelizer.setQueue(queue /*objectDrawQueue*/, queue /*TagQueue*/, queue /*AllocationQueue*/, queue /*MipmapQueue*/);
+		voxelizer.createRenderPass();
+		voxelizer.createFramebuffer();
+		voxelizer.createSemaphore();
 	}
 
 	void postprocessesSetup()
@@ -1900,7 +1923,8 @@ public:
 		PostProcess* VXGIPostProcess = new PostProcess;
 		VXGIPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
 		VXGIPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VXGIPostProcess->createCommandPool();
+		//VXGIPostProcess->createCommandPool();
+		VXGIPostProcess->commandPool = cmdPool;
 		VXGIPostProcess->createRenderPass();
 		VXGIPostProcess->createFramebuffer();
 		VXGIPostProcess->createSemaphore();
@@ -1910,7 +1934,8 @@ public:
 		PostProcess* SceneImageStage = new PostProcess;
 		SceneImageStage->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
 		SceneImageStage->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		SceneImageStage->createCommandPool();
+		//SceneImageStage->createCommandPool();
+		SceneImageStage->commandPool = cmdPool;
 		SceneImageStage->createRenderPass();
 		SceneImageStage->createFramebuffer();
 		SceneImageStage->createSemaphore();
@@ -1920,7 +1945,8 @@ public:
 		PostProcess* HDRHighlightPostProcess = new PostProcess;
 		HDRHighlightPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM, DOWNSAMPLING_BLOOM), false, DRAW_INDEX, 0, false, NULL);
 		HDRHighlightPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		HDRHighlightPostProcess->createCommandPool();
+		//HDRHighlightPostProcess->createCommandPool();
+		HDRHighlightPostProcess->commandPool = cmdPool;
 		HDRHighlightPostProcess->createRenderPass();
 		HDRHighlightPostProcess->createFramebuffer();
 		HDRHighlightPostProcess->createSemaphore();
@@ -1930,7 +1956,8 @@ public:
 		PostProcess* HorizontalBlurPostProcess = new PostProcess;
 		HorizontalBlurPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 2.0f, DOWNSAMPLING_BLOOM * 2.0f), false, DRAW_INDEX, 0, false, NULL);
 		HorizontalBlurPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		HorizontalBlurPostProcess->createCommandPool();
+		//HorizontalBlurPostProcess->createCommandPool();
+		HorizontalBlurPostProcess->commandPool = cmdPool;
 		HorizontalBlurPostProcess->createRenderPass();
 		HorizontalBlurPostProcess->createFramebuffer();
 		HorizontalBlurPostProcess->createSemaphore();
@@ -1940,7 +1967,8 @@ public:
 		PostProcess* VerticalBlurPostProcess = new PostProcess;
 		VerticalBlurPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 4.0f, DOWNSAMPLING_BLOOM * 4.0f), false, DRAW_INDEX, 0, false, NULL);
 		VerticalBlurPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VerticalBlurPostProcess->createCommandPool();
+		//VerticalBlurPostProcess->createCommandPool();
+		VerticalBlurPostProcess->commandPool = cmdPool;
 		VerticalBlurPostProcess->createRenderPass();
 		VerticalBlurPostProcess->createFramebuffer();
 		VerticalBlurPostProcess->createSemaphore();
@@ -1950,7 +1978,8 @@ public:
 		PostProcess* HorizontalBlurPostProcess2 = new PostProcess;
 		HorizontalBlurPostProcess2->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 8.0f, DOWNSAMPLING_BLOOM * 8.0f), false, DRAW_INDEX, 0, false, NULL);
 		HorizontalBlurPostProcess2->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		HorizontalBlurPostProcess2->createCommandPool();
+		//HorizontalBlurPostProcess2->createCommandPool();
+		HorizontalBlurPostProcess2->commandPool = cmdPool;
 		HorizontalBlurPostProcess2->createRenderPass();
 		HorizontalBlurPostProcess2->createFramebuffer();
 		HorizontalBlurPostProcess2->createSemaphore();
@@ -1960,7 +1989,8 @@ public:
 		PostProcess* VerticalBlurPostProcess2 = new PostProcess;
 		VerticalBlurPostProcess2->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 16.0f, DOWNSAMPLING_BLOOM * 16.0f), false, DRAW_INDEX, 0, false, NULL);
 		VerticalBlurPostProcess2->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VerticalBlurPostProcess2->createCommandPool();
+		//VerticalBlurPostProcess2->createCommandPool();
+		VerticalBlurPostProcess2->commandPool = cmdPool;
 		VerticalBlurPostProcess2->createRenderPass();
 		VerticalBlurPostProcess2->createFramebuffer();
 		VerticalBlurPostProcess2->createSemaphore();
@@ -1970,7 +2000,8 @@ public:
 		PostProcess* LastPostProcess = new PostProcess;  // Tone mapping
 		LastPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
 		LastPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		LastPostProcess->createCommandPool();
+		//LastPostProcess->createCommandPool();
+		LastPostProcess->commandPool = cmdPool;
 		LastPostProcess->createRenderPass();
 		LastPostProcess->createFramebuffer();
 		LastPostProcess->createSemaphore();
@@ -2024,7 +2055,7 @@ public:
 		// 3-6. hightlight blur pass
 		// 7. tone mapping pass
 		{
-			//prevSemaphore = voxelizator.createMipmaps(prevSemaphore);
+			//prevSemaphore = voxelizer.createMipmaps(prevSemaphore);
 			int i = 0;
 			for (auto& post : postProcessStages)
 			{
@@ -2089,14 +2120,14 @@ public:
 		buildCommandBuffers();  // override, build drawCmdBuffers (frame buffers)
 		buildDeferredCommandBuffer();
 		standardShadow.createCommandBuffers();
-		voxelizator.createCommandBuffers();
+		voxelizer.createCommandBuffers();
 		for (const auto& post : postProcessStages)
 		{
 			post->createCommandBuffers();
 		}
 
 		// Voxelization
-		voxelizator.createMipmaps(voxelizator.createVoxels(camera, VK_NULL_HANDLE));
+		voxelizer.createMipmaps(voxelizer.createVoxels(camera, VK_NULL_HANDLE));
 		
 		prepared = true;
 	}
@@ -2119,10 +2150,8 @@ public:
 
 	virtual void viewChanged() override
 	{
-		//updateUniformBufferOffscreen();
 		updateUniformBuffers(frameTimer);
 	}
-
 
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay) override
 	{

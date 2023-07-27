@@ -61,35 +61,28 @@ public:
 
 	void cleanUp()
 	{
-		for (uint32_t i = 0; i < geoList.size(); i++)
+		for (auto& pair : assetMap)
 		{
-			Geo* pGeo = FindAsset<Geo>(geoList[i]);
-			delete pGeo;
-		}
-		
-		for (uint32_t i = 0; i < textureList.size(); i++)
-		{
-			Texture* pTex = FindAsset<Texture>(textureList[i]);
-			delete pTex;
-		}
-		
-		for (uint32_t i = 0; i < materialList.size(); i++)
-		{
-			Material* pMaterial = FindAsset<Material>(materialList[i]);
-			delete pMaterial;
+			for (auto& asset : pair.second)
+			{
+				delete asset.second;
+			}
 		}
 
-		for (uint32_t i = 0; i < materialManager.size(); i++)
-		{			
-			delete materialManager[i];
+		for (auto& mat : materialManager)
+		{
+			delete mat;
 		}
-		
+
+		for (auto& obj : objectManager)
+		{
+			delete obj;
+		}
+
 		assetMap.clear();
-
 		geoList.clear();
 		textureList.clear();
 		materialList.clear();
-
 		materialManager.clear();
 	}
 
