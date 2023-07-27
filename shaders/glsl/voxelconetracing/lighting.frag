@@ -196,8 +196,23 @@ void main() {
 		}	
 	}
 
+	// Only AO
+	//resultColor = vec3(GlobalIllumination.w);
+
+#if 0
+	//Lighting + GI
+	resultColor += GlobalIllumination.xyz * energyConservation * energyConservation;
+
+	//Lighting + AO
+	resultColor *= GlobalIllumination.w;
+
+	//Lighting + GI + AO
+	resultColor += GlobalIllumination.xyz * energyConservation * energyConservation;
+	resultColor *= GlobalIllumination.w; // AO
+#endif
+
+#if 1	
 	//drawMode == 0 //Only Lighting
-	
 	if(drawMode == 1) //Only AO
 	{
 		 resultColor = vec3(GlobalIllumination.w);
@@ -215,6 +230,7 @@ void main() {
 		resultColor += GlobalIllumination.xyz * energyConservation * energyConservation;
 		resultColor *= GlobalIllumination.w; // AO
 	}
+#endif
 
 	resultColor += vec3(EmissiveMap.xyz);	
 

@@ -59,7 +59,8 @@ layout(location = 5) flat in uint faxis;
 
 layout(location = 0) out vec4 outColor;
 
-layout(pixel_center_integer) in vec4 gl_FragCoord;
+//layout(pixel_center_integer) in vec4 gl_FragCoord;
+in vec4 gl_FragCoord;
 
 void main() {
 

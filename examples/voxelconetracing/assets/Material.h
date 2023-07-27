@@ -97,18 +97,18 @@ public:
 	
 	void setScreenScale(glm::vec2 scale);
 
-	VkBuffer uniformBuffer;
-	VkDeviceMemory uniformBufferMemory;
+	VkBuffer uniformBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer directionalLightBuffer;
-	VkDeviceMemory directionalLightBufferMemory;
+	VkBuffer directionalLightBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory directionalLightBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
+	VkBuffer vertexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
 
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
+	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 
 	std::vector<Texture*> textures;
 

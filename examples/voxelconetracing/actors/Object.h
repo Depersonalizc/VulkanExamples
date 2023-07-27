@@ -60,7 +60,7 @@ public:
 		shadowMaterial = new StandardShadowMaterial;
 		shadowMaterial->setUniformBuffer(shadowConstBuffer);
 		shadowMaterial->LoadFromFilename(device, physicalDevice, shadowCommandPool, ShadowQueue, "standardShadow"  + objectName + "material");
-		shadowMaterial->setShaderPaths("shaders/standardShadowMap.vert.spv", "shaders/standardShadowMap.frag.spv", "", "", "", "");
+		shadowMaterial->setShaderPaths(getShaderPath("standardShadowMap.vert.spv"), getShaderPath("standardShadowMap.frag.spv"), "", "", "", "");
 
 		
 		shadowMaterial->createDescriptorSet();

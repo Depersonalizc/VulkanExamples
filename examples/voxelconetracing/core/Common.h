@@ -12,7 +12,8 @@
 //#define GLFW_INCLUDE_VULKAN
 //#include <GLFW/glfw3.h>
 //#endif
-#include <vulkanexamplebase.h>
+//#include <vulkanexamplebase.h>
+#include <VulkanTools.h>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -25,7 +26,22 @@
 
 #include <chrono>
 
-static std::vector<char> readFile(const std::string& filename)
+static const std::string getShaderPath(std::string shaderfile)
+{
+	return getShaderBasePath() + "glsl/voxelconetracing/" + shaderfile;
+}
+
+static const std::string getModelPath(std::string modelfile)
+{
+	return getAssetPath() + "models/vct/" + modelfile;
+}
+
+static const std::string getTexturePath(std::string texturefile)
+{
+	return getAssetPath() + "textures/vct/" + texturefile;
+}
+
+static std::vector<char> readFile(const std::string filename)
 {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -58,12 +74,4 @@ enum GBUFFER
 #define WORKGROUP_X_SIZE_MAX 1024
 #define WORKGROUP_Y_SIZE_MAX 1024
 #define WORKGROUP_Z_SIZE_MAX 64
-
-static bool bDeubDisply = false;
-static bool bVRmode = false;
-static bool bRotateMainLight = false;
-
-static int autoCameraMove = -1;
-
-static uint32_t drawMode = 4;
 

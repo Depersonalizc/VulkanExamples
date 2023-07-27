@@ -1,4 +1,5 @@
 #pragma once
+#if 0
 
 //#include "VulkanDebug.h"
 #include "VulkanQueue.h"
@@ -101,7 +102,7 @@ public:
 	//void createFrameBufferRenderPass();
 
 	//void createFrameBufferCommandPool();
-	void createFrameBufferCommandBuffers();
+	/***DONE, todo drawUI***/void createFrameBufferCommandBuffers();
 
 	//void createFramebufferDescriptorSetLayout();
 	//void createFramebufferDescriptorPool();
@@ -114,7 +115,7 @@ public:
 	/***DONE***/ void createDeferredRenderPass();
 
 	//void createDeferredCommandPool();
-	void createDeferredCommandBuffers();
+	/***DONE: buildDeferredCommandBuffer***/ void createDeferredCommandBuffers();
 
 	/***DONE: draw()***/ void drawFrame(float deltaTime);
 
@@ -135,11 +136,11 @@ public:
 	//VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
 
-	void run();
+	/***DONE***/ void run();
 	
 	/***DONE***/ void updateUniformBuffers(float deltaTime);
 
-	void mainLoop();
+	/***DONE***/ void mainLoop();
 
 	void cleanUp();
 
@@ -159,7 +160,7 @@ public:
 	/***DONE***/ void LoadObjectMaterial(std::string name, std::string albedo, std::string specular, std::string normal, std::string emissive);
 	/***DONE***/ void ConnectSponzaMaterials(Object* sponza);
 
-	/***DONE***/ void LoadObjects();
+	/***DONE, todo refactor Voxelizer***/ void LoadObjects();
 
 	// Misc
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t obj, size_t location,	int32_t code, const char* layerPrefix, const char* msg,	void* userData);
@@ -290,3 +291,4 @@ public:
 	
 };
 
+#endif

@@ -7,7 +7,7 @@
 
 #define INBASE 0
 
-#if 1
+#if 0
 
 #if FEATURE_GLFW  // glfw
 using namespace OVR;
@@ -1308,7 +1308,7 @@ void VulkanApp::initVulkan()
 
 	//06. Create Depth
 #if 0
-	createDepthResources();  // depthImage
+	createDepthResources();  // depthImage, TODO call transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, deferredCommandPool);
 #endif
 	standardShadow.createDepthResources();
 	//VoxelRenderProcess->createDepthResources();
@@ -1317,22 +1317,12 @@ void VulkanApp::initVulkan()
 	//07. Create FrameBuffers
 	createDeferredFramebuffer();
 	standardShadow.createFramebuffer();
-
-
 	voxelizator.createFramebuffer();
-
-
-
 	for (size_t i = 0; i < postProcessStages.size(); i++)
 	{
 		if (!postProcessStages[i]->isCSPostProcess)
 			postProcessStages[i]->createFramebuffer();
 	}
-
-
-	//createFramebuffers();
-
-
 
 	//08. Create GraphicsPipelines
 	//[objects]

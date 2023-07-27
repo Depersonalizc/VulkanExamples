@@ -1,8 +1,10 @@
 #pragma once
 
+#include <camera.hpp>
+
 #include "Common.h"
 #include "VulkanQueue.h"
-#include "../actors/Camera.h"
+//#include "../actors/Camera.h"
 #include "../actors/Object.h"
 
 #define VOXEL_SIZE 512
@@ -15,7 +17,7 @@ public:
 	{
 		//voxelizeMaterial->cleanPipeline();		
 
-		
+
 	}
 
 	void shutDown()
@@ -89,26 +91,26 @@ public:
 
 		vkDestroyBuffer(device, OctreeMemIndcBuffer, nullptr);
 		vkFreeMemory(device, OctreeMemIndcMemory, nullptr);
-		
-		
+
+
 		vkDestroyBuffer(device, SVOInitInfoBuffer, nullptr);
 		vkFreeMemory(device, SVOInitInfoMemory, nullptr);
 	}
 
 	void release3dImages()
 	{
-		
+
 	}
 
-	VkSemaphore createVoxels(const CameraActor& camera, VkSemaphore semaphoreParam)
+	VkSemaphore createVoxels(const Camera& camera, VkSemaphore semaphoreParam)
 	{
 		//voxelization
 		UniformBufferObject ubo = {};
 
-		ubo.viewMat = camera.viewMat;
-		ubo.projMat = camera.projMat;
-		ubo.viewProjMat = camera.viewProjMat;
-		ubo.InvViewProjMat = camera.InvViewProjMat;
+		ubo.viewMat = camera.matrices.view;
+		ubo.projMat = camera.matrices.perspective;
+		ubo.viewProjMat = camera.matrices.viewProj;
+		ubo.InvViewProjMat = camera.matrices.invViewProj;
 		ubo.modelViewProjMat = ubo.viewProjMat;
 		ubo.cameraWorldPos = camera.position;
 
@@ -132,7 +134,8 @@ public:
 		if (semaphoreParam == VK_NULL_HANDLE) {
 			submitInfo.waitSemaphoreCount = 0;
 			submitInfo.pWaitSemaphores = nullptr;
-		} else {
+		}
+		else {
 			submitInfo.waitSemaphoreCount = 1;
 			submitInfo.pWaitSemaphores = &semaphoreParam;
 		}
@@ -148,7 +151,7 @@ public:
 			throw std::runtime_error("failed to submit draw command buffer!");
 		}
 
-		
+
 
 		vkQueueWaitIdle(VXGIMaterials[0]->queue);
 
@@ -233,7 +236,7 @@ public:
 
 	void Initialize(VkDevice deviceParam, VkPhysicalDevice physicalDeviceParam, VkSurfaceKHR surfaceParam, int LayerCount, uint32_t miplevelParam, glm::vec2 Scales);
 
-	void createImage(uint32_t width, uint32_t height , uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits countBits, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits countBits, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
@@ -274,7 +277,7 @@ public:
 		rootNode.bb.bounds[0] = -glm::vec4(float(VOXEL_SIZE / 2));
 		rootNode.bb.bounds[1] = glm::vec4(float(VOXEL_SIZE / 2));
 
-		void *data2;
+		void* data2;
 
 		vkMapMemory(device, OctreeMemory, 0, sizeof(OctreeNode), 0, &data2);
 		memcpy(data2, &rootNode, sizeof(OctreeNode));
@@ -410,10 +413,10 @@ public:
 	}
 
 	void initMaterial()
-	{	
-		for (size_t i = 0; i < standardObject->geos.size() ; i++)
+	{
+		for (size_t i = 0; i < standardObject->geos.size(); i++)
 		{
-			VoxelizeMaterial *voxelizeMaterial = new VoxelizeMaterial;
+			VoxelizeMaterial* voxelizeMaterial = new VoxelizeMaterial;
 			voxelizeMaterial->LoadFromFilename(device, physicalDevice, commandPool, queue, "voxel_material");
 
 			voxelizeMaterial->addTexture(standardObject->materials[i]->textures[0]);
@@ -423,11 +426,21 @@ public:
 
 			voxelizeMaterial->setBuffers(voxelFragCountBuffer, ouputPosListBuffer, ouputAlbedoListBuffer);
 
-			voxelizeMaterial->setShaderPaths("shaders/voxelization.vert.spv", "shaders/voxelization.frag.spv", "", "", "shaders/voxelization.geom.spv", "");
+			voxelizeMaterial->setShaderPaths(getShaderPath("voxelization.vert.spv"), getShaderPath("voxelization.frag.spv"), "", "", getShaderPath("voxelization.geom.spv"), "");
 			voxelizeMaterial->createVoxelUniformBuffer(glm::mat4(1.0), viewX, viewY, viewZ, proj, extent2D.width, extent2D.height, VOXEL_SIZE, halfVoxelSize);
 
+
+			//
+			voxelizeMaterial->fragCount = fragCount;
+			voxelizeMaterial->setBuffers(voxelFragCountBuffer, ouputPosListBuffer, ouputAlbedoListBuffer);
+			voxelizeMaterial->set3DImages(albedo3DImageViewSet[0]);
+
+			voxelizeMaterial->createDescriptorSet();
+			voxelizeMaterial->connectRenderPass(renderPass);
+			voxelizeMaterial->createGraphicsPipeline(extent2D);
+
 			VXGIMaterials.push_back(voxelizeMaterial);
-		}		
+		}
 	}
 
 
@@ -459,12 +472,12 @@ public:
 		createBuffer(sizeof(FragmentListData) * fragCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, ouputPosListBuffer, ouputPosListBufferMemory);
 		createBuffer(sizeof(FragmentListData) * fragCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, ouputAlbedoListBuffer, ouputAlbedoListBufferMemory);
 	}
-	
-	
+
+
 
 	void createFragListImages();
 
-	
+
 	void createOctreeCommandBuffers();
 
 	void createAllocateCommandBuffers();
@@ -508,7 +521,7 @@ public:
 	{
 		VXGITagMaterial = new VoxelTagMaterial;
 		VXGITagMaterial->LoadFromFilename(device, physicalDevice, commandPool, TagQueue, "voxel_tag_material");
-		VXGITagMaterial->setShaderPaths("", "", "", "", "", "shaders/voxelTag.comp.spv");
+		VXGITagMaterial->setShaderPaths("", "", "", "", "", getShaderPath("voxelTag.comp.spv"));
 	}
 
 
@@ -516,22 +529,22 @@ public:
 	{
 		VXGIAllocMaterial = new VoxelAllocationMaterial;
 		VXGIAllocMaterial->LoadFromFilename(device, physicalDevice, commandPool, AllocationQueue, "voxel_alloc_material");
-		VXGIAllocMaterial->setShaderPaths("", "", "", "", "", "shaders/voxelAlloc.comp.spv");
+		VXGIAllocMaterial->setShaderPaths("", "", "", "", "", getShaderPath("voxelAlloc.comp.spv"));
 	}
 
 	void initMipmapMaterial()
 	{
 		VXGIMipmapMaterial = new VoxelMipmapMaterial;
 		VXGIMipmapMaterial->LoadFromFilename(device, physicalDevice, commandPool, MipmapQueue, "voxel_mipmap_material");
-		VXGIMipmapMaterial->setShaderPaths("", "", "", "", "", "shaders/voxelMipmap.comp.spv");
+		VXGIMipmapMaterial->setShaderPaths("", "", "", "", "", getShaderPath("voxelMipmap.comp.spv"));
 	}
-	
+
 
 	void initTextureMaterial()
 	{
 		VXGITextureMaterial = new VoxelTextureMaterial;
 		VXGITextureMaterial->LoadFromFilename(device, physicalDevice, commandPool, MipmapQueue, "voxel_texture_material");
-		VXGITextureMaterial->setShaderPaths("", "", "", "", "", "shaders/voxel3DTexture.comp.spv");
+		VXGITextureMaterial->setShaderPaths("", "", "", "", "", getShaderPath("voxel3DTexture.comp.spv"));
 	}
 
 	void initOCtreeMaterial()
@@ -539,14 +552,14 @@ public:
 		VXGIOctreeMaterial = new VoxelOctreeMaterial;
 		VXGIOctreeMaterial->numOCtreeNode = maxiumOCtreeNodeCount;
 		VXGIOctreeMaterial->LoadFromFilename(device, physicalDevice, commandPool, TagQueue, "voxel_texture_material");
-		VXGIOctreeMaterial->setShaderPaths("", "", "", "", "", "shaders/voxelOctree.comp.spv");
+		VXGIOctreeMaterial->setShaderPaths("", "", "", "", "", getShaderPath("voxelOctree.comp.spv"));
 	}
 
 	void createOctreeBuffer(uint32_t param)
 	{
 		maxiumOCtreeNodeCount = param;
 		createBuffer(sizeof(OctreeNode) * maxiumOCtreeNodeCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, OctreeBuffer, OctreeMemory);
-	
+
 		createBuffer(sizeof(MemoryIndicator), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, OctreeMemIndcBuffer, OctreeMemIndcMemory);
 
 	}
@@ -592,7 +605,7 @@ public:
 
 
 	VkCommandBuffer fragListCommandBuffer;
-	
+
 	VkCommandBuffer allocateCommandBuffer;
 	VkCommandBuffer mipMapCommandBuffer;
 
@@ -602,7 +615,7 @@ public:
 
 	VkFramebuffer frameBuffer;
 
-	
+
 	VkQueue queue;
 
 
@@ -622,7 +635,7 @@ public:
 	VkImage outputImage;
 	VkImageView outputImageView;
 	VkDeviceMemory outputImageMemory;
-	
+
 	std::vector<VkImage> albedo3DImageSet;
 	std::vector<VkImageView> albedo3DImageViewSet;
 	std::vector<VkDeviceMemory> albedo3DImageMemorySet;
@@ -649,8 +662,8 @@ public:
 
 	VkBuffer SVOInitInfoBuffer;
 	VkDeviceMemory SVOInitInfoMemory;
-	
-	
+
+
 	uint32_t miplevel;
 
 	uint32_t fragCount;

@@ -8,12 +8,8 @@
 
 #include "vulkanexamplebase.h"
 #include "VulkanFrameBuffer.hpp"
-#include "VulkanglTFModel.h"
 
 /******************************/
-#include "core/VulkanQueue.h"
-
-#include "core/Vertex.h"
 #include "core/PostProcess.h"
 #include "core/Shadow.h"
 #include "core/Voxelization.h"
@@ -24,10 +20,7 @@
 
 #include "actors/Object.h"
 #include "actors/Light.h"
-#include <sstream>
-
-
-//#include "core/VulkanApp.h"
+/*****************************/
 
 
 #define VERTEX_BUFFER_BIND_ID 0
@@ -35,20 +28,22 @@
 
 // Shadowmap properties
 #if defined(__ANDROID__)
-#define SHADOWMAP_DIM 1024
+#define SHADOWMAP_WIDTH 2048
+#define SHADOWMAP_HEIGHT 512
 #else
-#define SHADOWMAP_DIM 2048
+#define SHADOWMAP_WIDTH 4096
+#define SHADOWMAP_HEIGHT 1024
 #endif
 
-#if defined(__ANDROID__)
-// Use max. screen dimension as deferred framebuffer size
-#define FB_DIM std::max(width,height)
-#else
-#define FB_DIM 2048
-#endif
+//#if defined(__ANDROID__)
+//// Use max. screen dimension as deferred framebuffer size
+//#define FB_DIM std::max(width,height)
+//#else
+//#define FB_DIM 2048
+//#endif
 
-// Must match the LIGHT_COUNT define in the shadow and deferred shaders
-#define LIGHT_COUNT 3
+//// Must match the LIGHT_COUNT define in the shadow and deferred shaders
+//#define LIGHT_COUNT 3
 
 
 class VulkanExample : public VulkanExampleBase
@@ -57,7 +52,9 @@ public:
 
 	float zNear = 0.1f;
 	float zFar = 100.0f;
-	int32_t debugDisplayTarget = 0;
+	int32_t drawMode = 4;
+	bool bGbufferView = false;
+	bool bRotateMainLight = true;
 
 	float mainLightAngle = 1.0f;
 	std::vector<DirectionalLight> directionLights;
@@ -65,14 +62,13 @@ public:
 	StandardShadow standardShadow;
 	Voxelization voxelizator;
 
-	PostProcess* sceneStage;  //for FrameRender
+	PostProcess* vxgiPP, * sceneStage, * hdrHighlightPP, * horizontalBlurPP, * verticalBlurPP, * horizontalBlurPP2, * verticalBlurPP2;
 	PostProcess* theLastPostProcess;
+
 	std::vector<PostProcess*> postProcessStages;
 
-	/*
-	VkQueue objectDrawQueue, TagQueue, AllocationQueue, MipmapQueue;
-	VkQueue lightingQueue, postProcessQueue, presentQueue;
-	*/
+	//VkQueue objectDrawQueue, TagQueue, AllocationQueue, MipmapQueue;
+	//VkQueue lightingQueue, postProcessQueue, presentQueue;
 
 	VoxelConetracingMaterial* voxelConetracingMaterial;
 	LightingMaterial* lightingMaterial;
@@ -81,15 +77,8 @@ public:
 
 	BlurMaterial* HBMaterial;
 	BlurMaterial* VBMaterial;
-
 	BlurMaterial* HBMaterial2;
 	BlurMaterial* VBMaterial2;
-
-	ComputeBlurMaterial* compHBMaterial;
-	ComputeBlurMaterial* compVBMaterial;
-
-	ComputeBlurMaterial* compHBMaterial2;
-	ComputeBlurMaterial* compVBMaterial2;
 
 	singleTriangular* offScreenPlane;
 	singleTriangular* offScreenPlaneforPostProcess;
@@ -122,7 +111,7 @@ public:
 
 
 
-
+	VkExtent2D swapChainExtent;
 
 
 
@@ -134,7 +123,7 @@ public:
 	{
 		title = "Voxel Cone Tracing GI";
 		name = "voxelConeTracingGI";
-		
+
 		// Camera
 		camera.type = Camera::CameraType::firstperson;
 #if defined(__ANDROID__)
@@ -143,47 +132,29 @@ public:
 		camera.movementSpeed = 5.0f;
 		camera.rotationSpeed = 0.25f;
 #endif
+		camera.position = { -10.0f, -1.7f, 2.0f };
+		camera.setRotation({ 0.0f, 250.0f, 0.0f });
 		camera.flipY = true;
-		camera.position = { 0.0f, -3.0f, 5.0f };
-		camera.setRotation({ 0.0f, 45.0f, 0.0f });
 		camera.setPerspective(45.0f, (float)width / (float)height, zNear, zFar);
+		camera.flipY = false;
 		timerSpeed *= 0.25f;
 
 		paused = true;
 	}
 
-	~VulkanExample()
+	~VulkanExample()  // TODO
 	{
 		// Frame buffers
-		if (frameBuffers.deferred)
-		{
-			delete frameBuffers.deferred;
-		}
-		if (frameBuffers.shadow)
-		{
-			delete frameBuffers.shadow;
-		}
 
-		vkDestroyPipeline(device, pipelines.deferred, nullptr);
-		vkDestroyPipeline(device, pipelines.offscreen, nullptr);
-		vkDestroyPipeline(device, pipelines.shadowpass, nullptr);
+		//vkDestroyPipeline(device, pipelines.deferred, nullptr);
+		//vkDestroyPipeline(device, pipelines.offscreen, nullptr);
+		//vkDestroyPipeline(device, pipelines.shadowpass, nullptr);
 
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		//vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		//vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-		// Uniform buffers
-		uniformBuffers.composition.destroy();
-		uniformBuffers.offscreen.destroy();
-		uniformBuffers.shadowGeometryShader.destroy();
-
-		// Textures
-		textures.model.colorMap.destroy();
-		textures.model.normalMap.destroy();
-		textures.background.colorMap.destroy();
-		textures.background.normalMap.destroy();
-
-		vkDestroySemaphore(device, offscreenSemaphore, nullptr);
+		destroySemaphores();
 	}
 
 
@@ -203,6 +174,14 @@ public:
 		else {
 			vks::tools::exitFatal("Selected GPU does not support geometry shaders!", VK_ERROR_FEATURE_NOT_PRESENT);
 		}
+		// Geometry shader support is required for voxelization
+		if (deviceFeatures.fragmentStoresAndAtomics) {
+			enabledFeatures.fragmentStoresAndAtomics = VK_TRUE;
+		}
+		else {
+			vks::tools::exitFatal("Selected GPU does not support fragment stores!", VK_ERROR_FEATURE_NOT_PRESENT);
+		}
+
 		// Enable anisotropic filtering if supported
 		if (deviceFeatures.samplerAnisotropy) {
 			enabledFeatures.samplerAnisotropy = VK_TRUE;
@@ -219,6 +198,83 @@ public:
 		}
 	}
 
+	// 
+	virtual void getDepthFormat() override
+	{
+		VkFormatProperties formatProps;
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, VK_FORMAT_D32_SFLOAT, &formatProps);
+		if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		{
+			depthFormat = VK_FORMAT_D32_SFLOAT;
+		}
+		else
+		{
+			vks::tools::exitFatal("Selected GPU does not support float32 depth format!", VK_ERROR_FORMAT_NOT_SUPPORTED);
+		}
+	}
+
+	void setupDepthStencil() override
+	{
+		VkImageCreateInfo imageCI{};
+		imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCI.imageType = VK_IMAGE_TYPE_2D;
+		imageCI.format = depthFormat;
+		imageCI.extent = { width, height, 1 };
+		imageCI.mipLevels = 1;
+		imageCI.arrayLayers = 1;
+		imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;  // IMPORTANT: set VK_IMAGE_USAGE_SAMPLED_BIT!
+
+		VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &depthStencil.image));
+		VkMemoryRequirements memReqs{};
+		vkGetImageMemoryRequirements(device, depthStencil.image, &memReqs);
+
+		VkMemoryAllocateInfo memAllloc{};
+		memAllloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memAllloc.allocationSize = memReqs.size;
+		memAllloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &depthStencil.mem));
+		VK_CHECK_RESULT(vkBindImageMemory(device, depthStencil.image, depthStencil.mem, 0));
+
+		VkImageViewCreateInfo imageViewCI{};
+		imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCI.image = depthStencil.image;
+		imageViewCI.format = depthFormat;
+		imageViewCI.subresourceRange.baseMipLevel = 0;
+		imageViewCI.subresourceRange.levelCount = 1;
+		imageViewCI.subresourceRange.baseArrayLayer = 0;
+		imageViewCI.subresourceRange.layerCount = 1;
+		imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		// Stencil aspect should only be set on depth + stencil formats (VK_FORMAT_D16_UNORM_S8_UINT..VK_FORMAT_D32_SFLOAT_S8_UINT
+		if (depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
+			imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+		VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));
+	}
+
+	void mouseMoved(double x, double y, bool &handled) override
+	{
+		int32_t dx = (int32_t)mousePos.x - x;
+		int32_t dy = (int32_t)mousePos.y - y;
+
+		if (mouseButtons.left) {
+			camera.rotate(glm::vec3(-dy * camera.rotationSpeed, -dx * camera.rotationSpeed, 0.0f));
+			viewUpdated = true;
+		}
+		if (mouseButtons.right) {
+			camera.translate(glm::vec3(-0.0f, 0.0f, dy * .005f));
+			viewUpdated = true;
+		}
+		if (mouseButtons.middle) {
+			camera.translate(glm::vec3(-dx * 0.005f, -dy * 0.005f, 0.0f));
+			viewUpdated = true;
+		}
+		
+		handled = true;
+	}
+
 	// GOOD
 	DirectionalLight initLight(glm::vec3 pos, glm::vec3 target, glm::vec3 color)
 	{
@@ -232,7 +288,10 @@ public:
 	// GOOD
 	void initLights()
 	{
-		directionLights.push_back(initLight({ 1.0, 1.0, 1.0 }, { -0.5, 14.5, -0.4 }, { -0.5, 14.618034, -0.4 }));  // main light
+		directionLights.push_back(initLight({ -0.5, 14.618034, -0.4 }, // position
+											{ -0.5, 14.5     , -0.4 }, // focus target
+											{  1.0, 1.0      ,  1.0 }  // color
+											));  // main light
 		swingMainLight();
 	}
 
@@ -263,223 +322,93 @@ public:
 			theLastPostProcess = postProcessStages[to];
 	}
 
-
-
-
-
-
-
-
-
-
-
-	// Prepare a layered shadow map with each layer containing depth from a light's point of view
-	// The shadow mapping pass uses geometry shader instancing to output the scene from the different
-	// light sources' point of view to the layers of the depth attachment in one single pass
-	void shadowSetup()
+	// GOOD
+	void loadAssets()
 	{
-		frameBuffers.shadow = new vks::Framebuffer(vulkanDevice);
+		// Initialize asset database instance
+		AssetDatabase::GetInstance();
+		AssetDatabase::SetDevice(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/);
 
-		frameBuffers.shadow->width = SHADOWMAP_DIM;
-		frameBuffers.shadow->height = SHADOWMAP_DIM;
-
-		// Find a suitable depth format
-		VkFormat shadowMapFormat;
-		VkBool32 validShadowMapFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &shadowMapFormat);
-		assert(validShadowMapFormat);
-
-		// Create a layered depth attachment for rendering the depth maps from the lights' point of view
-		// Each layer corresponds to one of the lights
-		// The actual output to the separate layers is done in the geometry shader using shader instancing
-		// We will pass the matrices of the lights to the GS that selects the layer by the current invocation
-		vks::AttachmentCreateInfo attachmentInfo = {};
-		attachmentInfo.format = shadowMapFormat;
-		attachmentInfo.width = SHADOWMAP_DIM;
-		attachmentInfo.height = SHADOWMAP_DIM;
-		attachmentInfo.layerCount = LIGHT_COUNT;
-		attachmentInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		frameBuffers.shadow->addAttachment(attachmentInfo);
-
-		// Create sampler to sample from to depth attachment
-		// Used to sample in the fragment shader for shadowed rendering
-		VK_CHECK_RESULT(frameBuffers.shadow->createSampler(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE));
-
-		// Create default renderpass for the framebuffer
-		VK_CHECK_RESULT(frameBuffers.shadow->createRenderPass());
+		LoadTextures();
+		LoadObjectMaterials();
+		LoadObjects();    // Load object gemoetry and connect materials. !!ALSO SET voxelizator's buffer and material (TODO: separate this)
+		LoadPlaneGeos();
+		for (const auto& post : postProcessStages)
+		{
+			post->offScreenPlane = offScreenPlane;
+		}
 	}
 
-	// Prepare the framebuffer for offscreen rendering with multiple attachments used as render targets inside the fragment shaders
-	void deferredSetup()
-	{
-		frameBuffers.deferred = new vks::Framebuffer(vulkanDevice);
 
-		frameBuffers.deferred->width = FB_DIM;
-		frameBuffers.deferred->height = FB_DIM;
 
-		// Four attachments (3 color, 1 depth)
-		vks::AttachmentCreateInfo attachmentInfo = {};
-		attachmentInfo.width = FB_DIM;
-		attachmentInfo.height = FB_DIM;
-		attachmentInfo.layerCount = 1;
-		attachmentInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-
-		// Color attachments
-		// Attachment 0: (World space) Positions
-		attachmentInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		frameBuffers.deferred->addAttachment(attachmentInfo);
-
-		// Attachment 1: (World space) Normals
-		attachmentInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		frameBuffers.deferred->addAttachment(attachmentInfo);
-
-		// Attachment 2: Albedo (color)
-		attachmentInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-		frameBuffers.deferred->addAttachment(attachmentInfo);
-
-		// Depth attachment
-		// Find a suitable depth format
-		VkFormat attDepthFormat;
-		VkBool32 validDepthFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &attDepthFormat);
-		assert(validDepthFormat);
-
-		attachmentInfo.format = attDepthFormat;
-		attachmentInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		frameBuffers.deferred->addAttachment(attachmentInfo);
-
-		// Create sampler to sample from the color attachments
-		VK_CHECK_RESULT(frameBuffers.deferred->createSampler(VK_FILTER_NEAREST, VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE));
-
-		// Create default renderpass for the framebuffer
-		VK_CHECK_RESULT(frameBuffers.deferred->createRenderPass());
-	}
-
-	// Put render commands for the scene into the given command buffer
-	void renderScene(VkCommandBuffer cmdBuffer, bool shadow)
-	{
-		// Background
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, shadow ? &descriptorSets.shadow : &descriptorSets.background, 0, NULL);
-		models.background.draw(cmdBuffer);
-
-		// Objects
-		vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, shadow ? &descriptorSets.shadow : &descriptorSets.model, 0, NULL);
-		models.model.bindBuffers(cmdBuffer);
-		vkCmdDrawIndexed(cmdBuffer, models.model.indices.count, 3, 0, 0, 0);
-	}
-
+	// GOOD
 	// Build a secondary command buffer for rendering the scene values to the offscreen frame buffer attachments
 	void buildDeferredCommandBuffer()
 	{
-		if (commandBuffers.deferred == VK_NULL_HANDLE)
-		{
-			commandBuffers.deferred = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, false);
-		}
-
-		// Create a semaphore used to synchronize offscreen rendering and usage
-		VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
-		VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &offscreenSemaphore));
+		deferredCommandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, false);
 
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		std::array<VkClearValue, 4> clearValues = {};
-		VkViewport viewport;
-		VkRect2D scissor;
+		std::array<VkClearValue, NUM_GBUFFERS + 1> clearValues = {};
+		clearValues[BASIC_COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
+		clearValues[SPECULAR_COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
+		clearValues[NORMAL_COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
+		clearValues[EMISSIVE_COLOR].color = { 0.0f, 0.0f, 0.0f, 0.0f };
+		clearValues[NUM_GBUFFERS].depthStencil = { 1.0f, 0 };
 
-		// First pass: Shadow map generation
-		// -------------------------------------------------------------------------------------------------------
+		VkRenderPassBeginInfo renderPassInfo = vks::initializers::renderPassBeginInfo();
+		renderPassInfo.renderPass = deferredRenderPass;
+		renderPassInfo.framebuffer = deferredFrameBuffer;
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent.width = width;
+		renderPassInfo.renderArea.extent.height = height;
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues = clearValues.data();
 
-		clearValues[0].depthStencil = { 1.0f, 0 };
 
-		renderPassBeginInfo.renderPass = frameBuffers.shadow->renderPass;
-		renderPassBeginInfo.framebuffer = frameBuffers.shadow->framebuffer;
-		renderPassBeginInfo.renderArea.extent.width = frameBuffers.shadow->width;
-		renderPassBeginInfo.renderArea.extent.height = frameBuffers.shadow->height;
-		renderPassBeginInfo.clearValueCount = 1;
-		renderPassBeginInfo.pClearValues = clearValues.data();
+		VK_CHECK_RESULT(vkBeginCommandBuffer(deferredCommandBuffer, &cmdBufInfo));
+		vkCmdBeginRenderPass(deferredCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffers.deferred, &cmdBufInfo));
+		VkDeviceSize offsets[] = { 0 };
+		for (const auto & object : objectManager)
+		{
+			for (size_t k = 0; k < object->geos.size(); k++)
+			{
+				vkCmdBindPipeline(deferredCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->materials[k]->pipeline);
+				vkCmdBindDescriptorSets(deferredCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, object->materials[k]->pipelineLayout, 0, 1, &object->materials[k]->descriptorSet, 0, nullptr);
 
-		viewport = vks::initializers::viewport((float)frameBuffers.shadow->width, (float)frameBuffers.shadow->height, 0.0f, 1.0f);
-		vkCmdSetViewport(commandBuffers.deferred, 0, 1, &viewport);
+				//VkBuffer vertexBuffers[] = { object->geos[k]->vertexBuffer };
+				//VkBuffer indexBuffer = object->geos[k]->indexBuffer;
+				vkCmdBindVertexBuffers(deferredCommandBuffer, 0, 1, &(object->geos[k]->vertexBuffer), offsets);
+				vkCmdBindIndexBuffer(deferredCommandBuffer, object->geos[k]->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		scissor = vks::initializers::rect2D(frameBuffers.shadow->width, frameBuffers.shadow->height, 0, 0);
-		vkCmdSetScissor(commandBuffers.deferred, 0, 1, &scissor);
+				vkCmdDrawIndexed(deferredCommandBuffer, static_cast<uint32_t>(object->geos[k]->indices.size()), 1, 0, 0, 0);
+			}
+		}
 
-		// Set depth bias (aka "Polygon offset")
-		vkCmdSetDepthBias(
-			commandBuffers.deferred,
-			depthBiasConstant,
-			0.0f,
-			depthBiasSlope);
-
-		vkCmdBeginRenderPass(commandBuffers.deferred, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdBindPipeline(commandBuffers.deferred, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.shadowpass);
-		renderScene(commandBuffers.deferred, true);  // put command into the deferred command buffer
-		vkCmdEndRenderPass(commandBuffers.deferred);
-
-		// Second pass: Deferred calculations
-		// -------------------------------------------------------------------------------------------------------
-
-		// Clear values for all attachments written in the fragment shader
-		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-		clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-		clearValues[2].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
-		clearValues[3].depthStencil = { 1.0f, 0 };
-
-		renderPassBeginInfo.renderPass = frameBuffers.deferred->renderPass;
-		renderPassBeginInfo.framebuffer = frameBuffers.deferred->framebuffer;
-		renderPassBeginInfo.renderArea.extent.width = frameBuffers.deferred->width;
-		renderPassBeginInfo.renderArea.extent.height = frameBuffers.deferred->height;
-		renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-		renderPassBeginInfo.pClearValues = clearValues.data();
-
-		vkCmdBeginRenderPass(commandBuffers.deferred, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-		viewport = vks::initializers::viewport((float)frameBuffers.deferred->width, (float)frameBuffers.deferred->height, 0.0f, 1.0f);
-		vkCmdSetViewport(commandBuffers.deferred, 0, 1, &viewport);
-
-		scissor = vks::initializers::rect2D(frameBuffers.deferred->width, frameBuffers.deferred->height, 0, 0);
-		vkCmdSetScissor(commandBuffers.deferred, 0, 1, &scissor);
-
-		vkCmdBindPipeline(commandBuffers.deferred, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.offscreen);
-		renderScene(commandBuffers.deferred, false);
-		vkCmdEndRenderPass(commandBuffers.deferred);
-
-		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffers.deferred));
+		vkCmdEndRenderPass(deferredCommandBuffer);
+		VK_CHECK_RESULT(vkEndCommandBuffer(deferredCommandBuffer));
 	}
 
-	void loadAssets()
-	{
-		const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
-		models.model.loadFromFile(getAssetPath() + "models/armor/armor.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		models.background.loadFromFile(getAssetPath() + "models/deferred_box.gltf", vulkanDevice, queue, glTFLoadingFlags);
-		textures.model.colorMap.loadFromFile(getAssetPath() + "models/armor/colormap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.model.normalMap.loadFromFile(getAssetPath() + "models/armor/normalmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.background.colorMap.loadFromFile(getAssetPath() + "textures/stonefloor02_color_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-		textures.background.normalMap.loadFromFile(getAssetPath() + "textures/stonefloor02_normal_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
-
-		// TODO: VCT
-		
-	}
 
 	void buildCommandBuffers() override  // record draw cmd buffers commands
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-		VkClearValue clearValues[2];
-		clearValues[0].color = { { 0.0f, 0.0f, 0.2f, 0.0f } };
+		std::array<VkClearValue, 2> clearValues = {};
+		clearValues[0].color = { { 0.0f, 0.678431f, 0.902f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
+		renderPassBeginInfo.renderArea.offset = { 0, 0 };
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues;
+		renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassBeginInfo.pClearValues = clearValues.data();
 
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
+		VkDeviceSize offsets[] = { 0 };
+		for (size_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			// Set target frame buffer
 			renderPassBeginInfo.framebuffer = VulkanExampleBase::frameBuffers[i];
@@ -487,19 +416,31 @@ public:
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, frameBufferMaterial->pipeline);
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, frameBufferMaterial->pipelineLayout, 0, 1, &frameBufferMaterial->descriptorSet, 0, nullptr);
 
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			//VkBuffer vertexBuffers[] = { offScreenPlane->vertexBuffer };
+			//VkBuffer indexBuffer = offScreenPlane->indexBuffer;
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &offScreenPlane->vertexBuffer, offsets);
+			vkCmdBindIndexBuffer(drawCmdBuffers[i], offScreenPlane->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vkCmdDrawIndexed(drawCmdBuffers[i], static_cast<uint32_t>(offScreenPlane->indices.size()), 1, 0, 0, 0);
 
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+			if (bGbufferView)
+			{
+				for (size_t k = 0; k < NUM_DEBUGDISPLAY; k++)
+				{
+					vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugDisplayMaterials[k]->pipeline);
+					vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, debugDisplayMaterials[k]->pipelineLayout, 0, 1, &debugDisplayMaterials[k]->descriptorSet, 0, nullptr);
 
-			// Final composition as full screen quad
-			// Note: Also used for debug display if debugDisplayTarget > 0
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.deferred);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+					//VkBuffer vertexBuffers[] = { debugDisplayPlane->vertexBuffer };
+					//VkBuffer indexBuffer = debugDisplayPlane->indexBuffer;
+					vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &debugDisplayPlane->vertexBuffer, offsets);
+					vkCmdBindIndexBuffer(drawCmdBuffers[i], debugDisplayPlane->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+					vkCmdDrawIndexed(drawCmdBuffers[i], static_cast<uint32_t>(debugDisplayPlane->indices.size()), 1, 0, 0, 0);
+				}
+			}
 
 			drawUI(drawCmdBuffers[i]);
 
@@ -509,101 +450,16 @@ public:
 		}
 	}
 
-	void preparePipelines()
+	// GOOD
+	void createSemaphores()
 	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-		VkPipelineRasterizationStateCreateInfo rasterizationState = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
-		VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-		VkPipelineColorBlendStateCreateInfo colorBlendState = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-		VkPipelineDepthStencilStateCreateInfo depthStencilState = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
-		VkPipelineViewportStateCreateInfo viewportState = vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-		VkPipelineMultisampleStateCreateInfo multisampleState = vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
-		std::vector<VkDynamicState> dynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-		VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-
-		VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
-		pipelineCI.pInputAssemblyState = &inputAssemblyState;
-		pipelineCI.pRasterizationState = &rasterizationState;
-		pipelineCI.pColorBlendState = &colorBlendState;
-		pipelineCI.pMultisampleState = &multisampleState;
-		pipelineCI.pViewportState = &viewportState;
-		pipelineCI.pDepthStencilState = &depthStencilState;
-		pipelineCI.pDynamicState = &dynamicState;
-		pipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
-		pipelineCI.pStages = shaderStages.data();
-
-		// Final fullscreen composition pass pipeline
-		{
-			rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-			shaderStages[0] = loadShader(getShadersPath() + "voxelconetracing/deferred.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-			shaderStages[1] = loadShader(getShadersPath() + "voxelconetracing/deferred.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-			// Empty vertex input state, vertices are generated by the vertex shader
-			VkPipelineVertexInputStateCreateInfo emptyInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
-			pipelineCI.pVertexInputState = &emptyInputState;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.deferred));
-		}
-
-		// Vertex input state from glTF model for pipeline rendering models
-		pipelineCI.pVertexInputState = vkglTF::Vertex::getPipelineVertexInputState({ vkglTF::VertexComponent::Position, vkglTF::VertexComponent::UV, vkglTF::VertexComponent::Color, vkglTF::VertexComponent::Normal, vkglTF::VertexComponent::Tangent });
-		rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
-
-		// Offscreen pipeline
-		{
-			// Separate render pass
-			pipelineCI.renderPass = frameBuffers.deferred->renderPass;
-
-			// Blend attachment states required for all color attachments
-			// This is important, as color write mask will otherwise be 0x0 and you
-			// won't see anything rendered to the attachment
-			std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates =
-			{
-				vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
-				vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
-				vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE)
-			};
-			colorBlendState.attachmentCount = static_cast<uint32_t>(blendAttachmentStates.size());
-			colorBlendState.pAttachments = blendAttachmentStates.data();
-
-			shaderStages[0] = loadShader(getShadersPath() + "voxelconetracing/mrt.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-			shaderStages[1] = loadShader(getShadersPath() + "voxelconetracing/mrt.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.offscreen));
-		}
-
-		// Shadow mapping pipeline
-		{
-			// The shadow mapping pipeline uses geometry shader instancing (invocations layout modifier) to output
-			// shadow maps for multiple lights sources into the different shadow map layers in one single render pass
-			std::array<VkPipelineShaderStageCreateInfo, 2> shadowStages;
-			shadowStages[0] = loadShader(getShadersPath() + "voxelconetracing/shadow.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-			shadowStages[1] = loadShader(getShadersPath() + "voxelconetracing/shadow.geom.spv", VK_SHADER_STAGE_GEOMETRY_BIT);
-
-			pipelineCI.pStages = shadowStages.data();
-			pipelineCI.stageCount = static_cast<uint32_t>(shadowStages.size());
-
-			// Shadow pass doesn't use any color attachments
-			colorBlendState.attachmentCount = 0;
-			colorBlendState.pAttachments = nullptr;
-			// Cull front faces
-			rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
-			depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-			// Enable depth bias
-			rasterizationState.depthBiasEnable = VK_TRUE;
-			// Add depth bias to dynamic state, so we can change it at runtime
-			dynamicStateEnables.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
-			dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-			// Reset blend attachment state
-			pipelineCI.renderPass = frameBuffers.shadow->renderPass;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.shadowpass));
-		}
+		VkSemaphoreCreateInfo semaphoreInfo = vks::initializers::semaphoreCreateInfo();
+		VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &objectDrawCompleteSemaphore));
 	}
-
-
-
-
-
-
-
+	void destroySemaphores()
+	{
+		vkDestroySemaphore(device, objectDrawCompleteSemaphore, nullptr);
+	}
 
 	// GOOD
 	void createGbuffers()
@@ -696,9 +552,10 @@ public:
 
 		VkAttachmentDescription depthAttachment = {};
 		{
-			VkFormat attDepthFormat;
-			assert(vks::tools::getSupportedDepthFormat(physicalDevice, &attDepthFormat) && "no supported depth format");
-			depthAttachment.format = attDepthFormat;
+			//VkFormat attDepthFormat;
+			//assert(vks::tools::getSupportedDepthFormat(physicalDevice, &attDepthFormat) && "no supported depth format");
+			//depthAttachment.format = attDepthFormat;
+			depthAttachment.format = depthFormat;
 		}
 		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -782,13 +639,23 @@ public:
 	// GOOD
 	void updateUniformBuffers(float deltaTime)
 	{
+		updateDrawMode();
+
 		if (bRotateMainLight)
 		{
 			mainLightAngle += static_cast<float>(deltaTime) * 0.2f;
 			swingMainLight();
-		}
+			SetDirectionLightMatrices(directionLights[0], 19.0f, 5.0f, 0.0f, 20.0f);
 
-		SetDirectionLightMatrices(directionLights[0], 19.0f, 5.0f, 0.0f, 20.0f);
+			ShadowUniformBuffer subo = {};
+			subo.viewProjMat = directionLights[0].projMat * directionLights[0].viewMat;
+			subo.invViewProjMat = glm::inverse(subo.viewProjMat);
+
+			void* shadowdata;
+			vkMapMemory(device, lightingMaterial->shadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &shadowdata);
+			memcpy(shadowdata, &subo, sizeof(ShadowUniformBuffer));
+			vkUnmapMemory(device, lightingMaterial->shadowConstantBufferMemory);
+		}
 
 		UniformBufferObject ubo = {};
 		ubo.modelMat = glm::mat4(1.0);
@@ -800,14 +667,6 @@ public:
 		ubo.cameraWorldPos = camera.position;
 		ubo.InvTransposeMat = ubo.modelMat;
 
-		ShadowUniformBuffer subo = {};
-		subo.viewProjMat = directionLights[0].projMat * directionLights[0].viewMat;
-		subo.invViewProjMat = glm::inverse(subo.viewProjMat);
-
-		void* shadowdata;
-		vkMapMemory(device, lightingMaterial->shadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &shadowdata);
-		memcpy(shadowdata, &subo, sizeof(ShadowUniformBuffer));
-		vkUnmapMemory(device, lightingMaterial->shadowConstantBufferMemory);
 
 		for (size_t i = 0; i < objectManager.size(); i++)
 		{
@@ -818,11 +677,9 @@ public:
 
 			ubo.modelMat = thisObject->modelMat;
 			ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;
-
-			glm::mat4 A = ubo.modelMat;
-			A[3] = glm::vec4(0, 0, 0, 1);
-			ubo.InvTransposeMat = glm::transpose(glm::inverse(A));
-
+			//glm::mat4 A = ubo.modelMat;
+			//A[3] = glm::vec4(0, 0, 0, 1);
+			ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));
 
 			//shadow
 			{
@@ -831,15 +688,10 @@ public:
 				//memcpy(data, &subo, sizeof(ShadowUniformBuffer));
 				//vkUnmapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory);
 
-
-				ObjectUniformBuffer obu = {};
-				obu.modelMat = thisObject->modelMat;
-
+				ObjectUniformBuffer obu = { thisObject->modelMat };
 				vkMapMemory(device, thisObject->shadowMaterial->objectUniformMemory, 0, sizeof(ObjectUniformBuffer), 0, &data);
 				memcpy(data, &obu, sizeof(ObjectUniformBuffer));
 				vkUnmapMemory(device, thisObject->shadowMaterial->objectUniformMemory);
-
-
 			}
 
 			for (size_t k = 0; k < thisObject->materials.size(); k++)
@@ -848,12 +700,8 @@ public:
 				vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
 				memcpy(data, &ubo, sizeof(UniformBufferObject));
 				vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
-
 			}
-
 		}
-
-
 
 		{
 			UniformBufferObject offScreenUbo = {};
@@ -887,29 +735,27 @@ public:
 			vkUnmapMemory(device, lightingMaterial->directionalLightBufferMemory);
 		}
 
-		if (bDeubDisply)
+		if (bGbufferView)
 		{
+			UniformBufferObject debugDisplayUbo = {};
+
+			debugDisplayUbo.modelMat = glm::mat4(1.0);
+			debugDisplayUbo.viewMat = ubo.viewMat;
+			debugDisplayUbo.projMat = ubo.projMat;
+			debugDisplayUbo.viewProjMat = ubo.viewProjMat;
+			debugDisplayUbo.InvViewProjMat = ubo.InvViewProjMat;
+			debugDisplayUbo.modelViewProjMat = debugDisplayUbo.viewProjMat;
+			debugDisplayUbo.InvTransposeMat = debugDisplayUbo.modelMat;
+			debugDisplayUbo.cameraWorldPos = ubo.cameraWorldPos;
+				
+			debugDisplayPlane->updateVertexBuffer(debugDisplayUbo.InvViewProjMat);
+
+			for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
 			{
-				UniformBufferObject debugDisplayUbo = {};
-
-				debugDisplayUbo.modelMat = glm::mat4(1.0);
-				debugDisplayUbo.viewMat = ubo.viewMat;
-				debugDisplayUbo.projMat = ubo.projMat;
-				debugDisplayUbo.viewProjMat = ubo.viewProjMat;
-				debugDisplayUbo.InvViewProjMat = ubo.InvViewProjMat;
-				debugDisplayUbo.modelViewProjMat = debugDisplayUbo.viewProjMat;
-				debugDisplayUbo.InvTransposeMat = debugDisplayUbo.modelMat;
-				debugDisplayUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-				debugDisplayPlane->updateVertexBuffer(debugDisplayUbo.InvViewProjMat);
-
-				for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
-				{
-					void* data;
-					vkMapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
-					memcpy(data, &debugDisplayUbo, sizeof(UniformBufferObject));
-					vkUnmapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory);
-				}
+				void* data;
+				vkMapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
+				memcpy(data, &debugDisplayUbo, sizeof(UniformBufferObject));
+				vkUnmapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory);
 			}
 		}
 
@@ -1176,13 +1022,23 @@ public:
 
 	/*Assets*/
 
-	// TODO: Change voxelizator.Initialize (Don't directly play with surface)
+	void LoadPlaneGeos()
+	{
+		offScreenPlane = new singleTriangular;
+		offScreenPlane->LoadFromFilename(device, physicalDevice, cmdPool /*frameBufferCommandPool*/, queue /*lightingQueue*/, "offScreenPlane");
+
+		debugDisplayPlane = new singleQuadral;
+		debugDisplayPlane->LoadFromFilename(device, physicalDevice, cmdPool /*frameBufferCommandPool*/, queue /*lightingQueue*/, "debugDisplayPlane");
+
+		offScreenPlaneforPostProcess = new singleTriangular;
+		offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
+	}
+
+	// TODO: Change voxelizator.Initialize (Don't directly access surface)
 	void LoadObjects()
 	{
-		static const auto& modelBaseDir = getAssetPath() + "models/vct/";
-
 		Object* Chromie = new Object;
-		Chromie->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, modelBaseDir + "Chromie.obj", 0, false);
+		Chromie->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, getModelPath("Chromie.obj"), 0, false);
 		Chromie->scale = glm::vec3(0.1f);
 		Chromie->UpdateOrbit(0.0f, 85.0f, 0.0);
 		Chromie->position = glm::vec3(3.0, -0.05, -0.25);
@@ -1193,7 +1049,7 @@ public:
 		objectManager.push_back(Chromie);
 
 		Object* Cerberus = new Object;
-		Cerberus->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, modelBaseDir + "Cerberus.obj", 0, false);
+		Cerberus->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, getModelPath("Cerberus.obj"), 0, false);
 		Cerberus->scale = glm::vec3(3.0f);
 		Cerberus->position = glm::vec3(0.0, 3.0, -0.25);
 		Cerberus->update();
@@ -1215,7 +1071,7 @@ public:
 		*/
 
 		Object* sponza = new Object;
-		sponza->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, modelBaseDir + "sponza.obj", -1, true);
+		sponza->init(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, getModelPath("sponza.obj"), -1, true);
 		sponza->scale = glm::vec3(0.01f);
 		sponza->position = glm::vec3(0.0, 0.0, 0.0);
 		sponza->update();
@@ -1223,24 +1079,16 @@ public:
 		objectManager.push_back(sponza);
 
 
-		voxelizator.Initialize(device, physicalDevice, swapChain.surface, 1, uint32_t(floor(log2(VOXEL_SIZE))), glm::vec2(1.0, 1.0));
-		voxelizator.createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		{
+			voxelizator.standardObject = sponza;
+			//voxelizator.standardObject = Johanna;
 
-		voxelizator.createCommandPool();
-
-		voxelizator.standardObject = sponza;
-		//voxelizator.standardObject = Johanna;
-		voxelizator.setMatrices();
-
-		//voxelizator.createBuffers(20000000);
-
-		glm::vec3 EX = voxelizator.standardObject->AABB.Extents * 2.0f;
-		voxelizator.createVoxelInfoBuffer(voxelizator.standardObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE, 0.01f);
-
-		voxelizator.setQueue(queue /*objectDrawQueue*/, queue /*TagQueue*/, queue /*AllocationQueue*/, queue /*MipmapQueue*/);
-		voxelizator.initMaterial();
-
-		//voxelRenderMaterial->createVoxelInfoBuffer(voxelizator.thisObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE);
+			voxelizator.setMatrices();
+			//voxelizator.createBuffers(20000000);
+			glm::vec3 EX = voxelizator.standardObject->AABB.Extents * 2.0f;
+			voxelizator.createVoxelInfoBuffer(voxelizator.standardObject->AABB.Center, glm::max(glm::max(EX.x, EX.y), EX.z), VOXEL_SIZE, 0.01f);
+			voxelizator.initMaterial();
+		}
 	}
 
 	// GOOD
@@ -1679,36 +1527,123 @@ public:
 		sponza->connectMaterial(flagpole, 318); //flagpole
 		sponza->connectMaterial(flagpole, 319); //flagpole
 	}
-	// GOOD
-	void LoadGlobalMaterials(PostProcess* vxgiPostProcess)
+
+	void LoadFrameBufferMaterial()
 	{
-		static const auto& shaderBaseDir = getShaderBasePath() + "voxelconetracing/";
+		frameBufferMaterial = new FinalRenderingMaterial;
+		frameBufferMaterial->LoadFromFilename(device, physicalDevice, cmdPool /*frameBufferCommandPool*/, queue /*presentQueue*/, "frameDisplay_material");
+		frameBufferMaterial->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("scene.frag.spv"), "", "", "", "");
+		//[framebuffer]
+		//frameBufferMaterial->setImageViews(standardShadow.outputImageView, depthImageView);
+		//frameBufferMaterial->setImageViews(BarrelAndAberrationPostProcess->outputImageView, depthImageView);
+		//frameBufferMaterial->setImageViews(voxelizator.outputImageView, depthImageView);
+		frameBufferMaterial->setImageViews(theLastPostProcess->outputImageView, depthStencil.view);
+		frameBufferMaterial->createDescriptorSet();
+		frameBufferMaterial->connectRenderPass(renderPass);
+		frameBufferMaterial->createGraphicsPipeline(glm::vec2(width, height), glm::vec2(0.0, 0.0));
+	}
 
-		voxelConetracingMaterial = new VoxelConetracingMaterial;
-		voxelConetracingMaterial->setDirectionalLights(&directionLights);
-		voxelConetracingMaterial->LoadFromFilename(device, physicalDevice, vxgiPostProcess->commandPool, queue /*postProcessQueue*/, "VXGI_material");
-		voxelConetracingMaterial->creatDirectionalLightBuffer();
-		voxelConetracingMaterial->setShaderPaths(shaderBaseDir + "voxelConeTracing.vert.spv",
-			shaderBaseDir + "voxelConeTracing.frag.spv", "", "", "", "");
-		voxelConetracingMaterial->setScreenScale(vxgiPostProcess->getScreenScale());
-		vxgiPostProcess->material = voxelConetracingMaterial;
+	// GOOD
+	void LoadPostProcessMaterials()  // Must be called after all the PP handles have been initialized
+	{
+		hdrHighlightMaterial->LoadFromFilename(device, physicalDevice, hdrHighlightPP->commandPool, queue /*postProcessQueue*/, "hdrHighlight_material");
+		hdrHighlightMaterial->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("HDRHighlight.frag.spv"), "", "", "", "");
+		hdrHighlightMaterial->setScreenScale(glm::vec2(DOWNSAMPLING_BLOOM, DOWNSAMPLING_BLOOM));
+		hdrHighlightMaterial->setImageViews(sceneStage->outputImageView, depthStencil.view);
+		hdrHighlightMaterial->createDescriptorSet();
+		hdrHighlightMaterial->connectRenderPass(hdrHighlightPP->renderPass);
+		hdrHighlightMaterial->createGraphicsPipeline(glm::vec2(hdrHighlightPP->width, hdrHighlightPP->height), glm::vec2(0.0, 0.0));
 
-		lightingMaterial = new LightingMaterial;
+		HBMaterial->LoadFromFilename(device, physicalDevice, horizontalBlurPP->commandPool, queue /*postProcessQueue*/, "HB_material");
+		HBMaterial->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("horizontalBlur.frag.spv"), "", "", "", "");
+		HBMaterial->setScreenScale(horizontalBlurPP->getScreenScale());
+		HBMaterial->setImageViews(hdrHighlightPP->outputImageView, depthStencil.view);
+		HBMaterial->createDescriptorSet();
+		HBMaterial->connectRenderPass(horizontalBlurPP->renderPass);
+		HBMaterial->createGraphicsPipeline(glm::vec2(horizontalBlurPP->width, horizontalBlurPP->height), glm::vec2(0.0, 0.0));
+
+		VBMaterial->LoadFromFilename(device, physicalDevice, verticalBlurPP->commandPool, queue /*postProcessQueue*/, "VB_material");
+		VBMaterial->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("verticalBlur.frag.spv"), "", "", "", "");
+		VBMaterial->setScreenScale(verticalBlurPP->getScreenScale());
+		VBMaterial->setImageViews(horizontalBlurPP->outputImageView, depthStencil.view);
+		VBMaterial->createDescriptorSet();
+		VBMaterial->connectRenderPass(verticalBlurPP->renderPass);
+		VBMaterial->createGraphicsPipeline(glm::vec2(verticalBlurPP->width, verticalBlurPP->height), glm::vec2(0.0, 0.0));
+
+		HBMaterial2->LoadFromFilename(device, physicalDevice, horizontalBlurPP2->commandPool, queue /*postProcessQueue*/, "HB2_material");
+		HBMaterial2->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("horizontalBlur.frag.spv"), "", "", "", "");
+		HBMaterial2->setScreenScale(horizontalBlurPP2->getScreenScale());
+		HBMaterial2->setImageViews(verticalBlurPP->outputImageView, depthStencil.view);
+		HBMaterial2->createDescriptorSet();
+		HBMaterial2->connectRenderPass(horizontalBlurPP2->renderPass);
+		HBMaterial2->createGraphicsPipeline(glm::vec2(horizontalBlurPP2->width, horizontalBlurPP2->height), glm::vec2(0.0, 0.0));
+
+		VBMaterial2->LoadFromFilename(device, physicalDevice, verticalBlurPP2->commandPool, queue /*postProcessQueue*/, "VB2_material");
+		VBMaterial2->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("verticalBlur.frag.spv"), "", "", "", "");
+		VBMaterial2->setScreenScale(verticalBlurPP2->getScreenScale());
+		VBMaterial2->setImageViews(horizontalBlurPP2->outputImageView, depthStencil.view);
+		VBMaterial2->createDescriptorSet();
+		VBMaterial2->connectRenderPass(verticalBlurPP2->renderPass);
+		VBMaterial2->createGraphicsPipeline(glm::vec2(verticalBlurPP2->width, verticalBlurPP2->height), glm::vec2(0.0, 0.0));
+
+		lastPostProcessMaterial->LoadFromFilename(device, physicalDevice, theLastPostProcess->commandPool, queue /*postProcessQueue*/, "lastPostProcess_material");
+		lastPostProcessMaterial->setShaderPaths(getShaderPath("postprocess.vert.spv"), getShaderPath("lastPostProcess.frag.spv"), "", "", "", "");
+		lastPostProcessMaterial->setImageViews(sceneStage->outputImageView, verticalBlurPP2->outputImageView, depthStencil.view);
+		lastPostProcessMaterial->createDescriptorSet();
+		lastPostProcessMaterial->connectRenderPass(theLastPostProcess->renderPass);
+		lastPostProcessMaterial->createGraphicsPipeline(glm::vec2(theLastPostProcess->width, theLastPostProcess->height), glm::vec2(0.0, 0.0));
+	}
+	// GOOD
+	void LoadGlobalMaterials()
+	{
 		lightingMaterial->setDirectionalLights(&directionLights);
 		lightingMaterial->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*lightingQueue*/, "lighting_material");
 		lightingMaterial->creatDirectionalLightBuffer();
-		lightingMaterial->setShaderPaths(shaderBaseDir + "lighting.vert.spv",
-			shaderBaseDir + "lighting.frag.spv", "", "", "", "");
-		sceneStage->material = lightingMaterial;
+		lightingMaterial->setShaderPaths(getShaderPath("lighting.vert.spv"), getShaderPath("lighting.frag.spv"), "", "", "", "");
+		lightingMaterial->setGbuffers(&gBufferImageViews, depthStencil.view, standardShadow.outputImageView, vxgiPP->outputImageView);
+		lightingMaterial->createDescriptorSet();
+		lightingMaterial->connectRenderPass(sceneStage->renderPass);
+		lightingMaterial->createGraphicsPipeline({ width, height });
+
+
+		voxelConetracingMaterial->setDirectionalLights(&directionLights);
+		voxelConetracingMaterial->LoadFromFilename(device, physicalDevice, vxgiPP->commandPool, queue /*postProcessQueue*/, "VXGI_material");
+		voxelConetracingMaterial->creatDirectionalLightBuffer();
+		voxelConetracingMaterial->setShaderPaths(getShaderPath("voxelConeTracing.vert.spv"), getShaderPath("voxelConeTracing.frag.spv"), "", "", "", "");
+		voxelConetracingMaterial->setScreenScale(vxgiPP->getScreenScale());
+		// Depends on voxelizer
+		voxelConetracingMaterial->setImageViews(sceneStage->outputImageView, depthStencil.view, gBufferImageViews[NORMAL_COLOR], gBufferImageViews[SPECULAR_COLOR], &voxelizator.albedo3DImageViewSet, standardShadow.outputImageView);
+		voxelConetracingMaterial->setBuffers(voxelizator.voxelInfoBuffer, lightingMaterial->shadowConstantBuffer);
+		voxelConetracingMaterial->createDescriptorSet();
+		voxelConetracingMaterial->connectRenderPass(vxgiPP->renderPass);
+		voxelConetracingMaterial->createGraphicsPipeline(glm::vec2(vxgiPP->width, vxgiPP->height), glm::vec2(0.0, 0.0));
+
 
 		debugDisplayMaterials.resize(NUM_DEBUGDISPLAY);
 		for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
 		{
 			debugDisplayMaterials[i] = new DebugDisplayMaterial;
 			debugDisplayMaterials[i]->LoadFromFilename(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*lightingQueue*/, "debugDisplay_material");
-			debugDisplayMaterials[i]->setShaderPaths(shaderBaseDir + "debug.vert.spv",
-				shaderBaseDir + "debug" + std::to_string(i) + ".frag.spv", "", "", "", "");
+			debugDisplayMaterials[i]->setShaderPaths(getShaderPath("debug.vert.spv"), getShaderPath("debug" + std::to_string(i) + ".frag.spv"), "", "", "", "");
+			debugDisplayMaterials[i]->setDubugBuffers(&gBufferImageViews, depthStencil.view, vxgiPP->outputImageView, standardShadow.outputImageView);
+			debugDisplayMaterials[i]->createDescriptorSet();
+			debugDisplayMaterials[i]->connectRenderPass(renderPass);
 		}
+
+		float debugWidth = std::ceilf(width * 0.25f);
+		float debugHeight = std::ceilf(height * 0.25f);
+		debugDisplayMaterials[0]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, 0.0));
+		debugDisplayMaterials[1]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, 0.0));
+		debugDisplayMaterials[2]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, 0.0));
+		debugDisplayMaterials[3]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, 0.0));
+		debugDisplayMaterials[4]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight));
+		debugDisplayMaterials[5]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 2.0));
+		debugDisplayMaterials[6]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight));
+		debugDisplayMaterials[7]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 2.0));
+		debugDisplayMaterials[8]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(0.0, debugHeight * 3.0));
+		debugDisplayMaterials[9]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth, debugHeight * 3.0));
+		debugDisplayMaterials[10]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, debugHeight * 3.0));
+		debugDisplayMaterials[11]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 3.0));
 	}
 	// GOOD
 	// Initialize materialManager
@@ -1786,15 +1721,13 @@ public:
 	// GOOD
 	void LoadObjectMaterial(std::string name, std::string albedo, std::string specular, std::string normal, std::string emissive)
 	{
-		static const auto& shaderBaseDir = getShaderBasePath() + "voxelconetracing/";
-
 		ObjectDrawMaterial* tempMat = new ObjectDrawMaterial;
 		tempMat->LoadFromFilename(device, physicalDevice, cmdPool /*deferredCommandPool*/, queue /*objectDrawQueue*/, name);
 		tempMat->addTexture(AssetDatabase::GetInstance()->LoadAsset<Texture>(albedo));
 		tempMat->addTexture(AssetDatabase::GetInstance()->LoadAsset<Texture>(specular));
 		tempMat->addTexture(AssetDatabase::GetInstance()->LoadAsset<Texture>(normal));
 		tempMat->addTexture(AssetDatabase::GetInstance()->LoadAsset<Texture>(emissive));
-		tempMat->setShaderPaths(shaderBaseDir + "shader.vert.spv", shaderBaseDir + "shader.frag.spv", "", "", "", "");
+		tempMat->setShaderPaths(getShaderPath("shader.vert.spv"), getShaderPath("shader.frag.spv"), "", "", "", "");
 		tempMat->createDescriptorSet();
 
 		materialManager.push_back(tempMat);
@@ -1936,13 +1869,123 @@ public:
 		instance->textureList.push_back(path);
 	}
 
+	void shadowSetup()
+	{
+		// setup shadow
+		standardShadow.Initialize(device, physicalDevice, swapChain.surface, 1, queue /*TagQueue*/, &objectManager);
+		//standardShadow.setExtent(16384, 4096);
+		standardShadow.setExtent(SHADOWMAP_WIDTH, SHADOWMAP_HEIGHT);
+		standardShadow.createImages(VK_FORMAT_R16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		standardShadow.createCommandPool();
+		standardShadow.createRenderPass();
+		standardShadow.createDepthResources();
+		standardShadow.createFramebuffer();
+		standardShadow.createSemaphore();
+	}
 
+	void voxelizerSetup()
+	{
+		voxelizator.Initialize(device, physicalDevice, swapChain.surface, 1, uint32_t(floor(log2(VOXEL_SIZE))), glm::vec2(1.0, 1.0));
+		voxelizator.createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		voxelizator.createCommandPool();
+		voxelizator.setQueue(queue /*objectDrawQueue*/, queue /*TagQueue*/, queue /*AllocationQueue*/, queue /*MipmapQueue*/);
+		voxelizator.createRenderPass();
+		voxelizator.createFramebuffer();
+		voxelizator.createSemaphore();
+	}
 
+	void postprocessesSetup()
+	{
+		//[Stage] Post-process
+		PostProcess* VXGIPostProcess = new PostProcess;
+		VXGIPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
+		VXGIPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VXGIPostProcess->createCommandPool();
+		VXGIPostProcess->createRenderPass();
+		VXGIPostProcess->createFramebuffer();
+		VXGIPostProcess->createSemaphore();
+		VXGIPostProcess->material = voxelConetracingMaterial = new VoxelConetracingMaterial;
+		vxgiPP = VXGIPostProcess;
 
+		PostProcess* SceneImageStage = new PostProcess;
+		SceneImageStage->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
+		SceneImageStage->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		SceneImageStage->createCommandPool();
+		SceneImageStage->createRenderPass();
+		SceneImageStage->createFramebuffer();
+		SceneImageStage->createSemaphore();
+		SceneImageStage->material = lightingMaterial = new LightingMaterial;
+		sceneStage = SceneImageStage;
 
+		PostProcess* HDRHighlightPostProcess = new PostProcess;
+		HDRHighlightPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM, DOWNSAMPLING_BLOOM), false, DRAW_INDEX, 0, false, NULL);
+		HDRHighlightPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		HDRHighlightPostProcess->createCommandPool();
+		HDRHighlightPostProcess->createRenderPass();
+		HDRHighlightPostProcess->createFramebuffer();
+		HDRHighlightPostProcess->createSemaphore();
+		HDRHighlightPostProcess->material = hdrHighlightMaterial = new HDRHighlightMaterial;
+		hdrHighlightPP = HDRHighlightPostProcess;
 
+		PostProcess* HorizontalBlurPostProcess = new PostProcess;
+		HorizontalBlurPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 2.0f, DOWNSAMPLING_BLOOM * 2.0f), false, DRAW_INDEX, 0, false, NULL);
+		HorizontalBlurPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		HorizontalBlurPostProcess->createCommandPool();
+		HorizontalBlurPostProcess->createRenderPass();
+		HorizontalBlurPostProcess->createFramebuffer();
+		HorizontalBlurPostProcess->createSemaphore();
+		HorizontalBlurPostProcess->material = HBMaterial = new BlurMaterial;
+		horizontalBlurPP = HorizontalBlurPostProcess;
 
+		PostProcess* VerticalBlurPostProcess = new PostProcess;
+		VerticalBlurPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 4.0f, DOWNSAMPLING_BLOOM * 4.0f), false, DRAW_INDEX, 0, false, NULL);
+		VerticalBlurPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VerticalBlurPostProcess->createCommandPool();
+		VerticalBlurPostProcess->createRenderPass();
+		VerticalBlurPostProcess->createFramebuffer();
+		VerticalBlurPostProcess->createSemaphore();
+		VerticalBlurPostProcess->material = VBMaterial = new BlurMaterial;
+		verticalBlurPP = VerticalBlurPostProcess;
 
+		PostProcess* HorizontalBlurPostProcess2 = new PostProcess;
+		HorizontalBlurPostProcess2->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 8.0f, DOWNSAMPLING_BLOOM * 8.0f), false, DRAW_INDEX, 0, false, NULL);
+		HorizontalBlurPostProcess2->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		HorizontalBlurPostProcess2->createCommandPool();
+		HorizontalBlurPostProcess2->createRenderPass();
+		HorizontalBlurPostProcess2->createFramebuffer();
+		HorizontalBlurPostProcess2->createSemaphore();
+		HorizontalBlurPostProcess2->material = HBMaterial2 = new BlurMaterial;
+		horizontalBlurPP2 = HorizontalBlurPostProcess2;
+
+		PostProcess* VerticalBlurPostProcess2 = new PostProcess;
+		VerticalBlurPostProcess2->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(DOWNSAMPLING_BLOOM * 16.0f, DOWNSAMPLING_BLOOM * 16.0f), false, DRAW_INDEX, 0, false, NULL);
+		VerticalBlurPostProcess2->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VerticalBlurPostProcess2->createCommandPool();
+		VerticalBlurPostProcess2->createRenderPass();
+		VerticalBlurPostProcess2->createFramebuffer();
+		VerticalBlurPostProcess2->createSemaphore();
+		VerticalBlurPostProcess2->material = VBMaterial2 = new BlurMaterial;
+		verticalBlurPP2 = VerticalBlurPostProcess2;
+
+		PostProcess* LastPostProcess = new PostProcess;  // Tone mapping
+		LastPostProcess->Initialize(device, physicalDevice, swapChain.surface, width, height, 1, 1, glm::vec2(1.0f, 1.0f), false, DRAW_INDEX, 0, false, NULL);
+		LastPostProcess->createImages(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		LastPostProcess->createCommandPool();
+		LastPostProcess->createRenderPass();
+		LastPostProcess->createFramebuffer();
+		LastPostProcess->createSemaphore();
+		LastPostProcess->material = lastPostProcessMaterial = new LastPostProcessgMaterial;
+		theLastPostProcess = LastPostProcess;  //!!! theLastPostProcess has to indicate the last post process, always !!!
+
+		postProcessStages.push_back(VXGIPostProcess);            // Voxel GI
+		postProcessStages.push_back(SceneImageStage);
+		postProcessStages.push_back(HDRHighlightPostProcess);    // HDR highlight
+		postProcessStages.push_back(HorizontalBlurPostProcess);  // Blurs
+		postProcessStages.push_back(VerticalBlurPostProcess);
+		postProcessStages.push_back(HorizontalBlurPostProcess2);
+		postProcessStages.push_back(VerticalBlurPostProcess2);
+		postProcessStages.push_back(LastPostProcess);
+	}
 
 
 	void draw()  // helper for render(), submitting to cmd queue
@@ -1954,50 +1997,50 @@ public:
 
 		submitInfo.commandBufferCount = 1;
 
-		//objectDrawQueue
+		//objectDrawQueue - Gbuffers for deferred rendering
 		{
 			currentSemaphore = objectDrawCompleteSemaphore;
-
 			submitInfo.pWaitSemaphores = &prevSemaphore;
 			submitInfo.pCommandBuffers = &deferredCommandBuffer;
 			submitInfo.pSignalSemaphores = &currentSemaphore;
 			VK_CHECK_RESULT(vkQueueSubmit(queue /*objectDrawQueue*/, 1, &submitInfo, VK_NULL_HANDLE))
-			
 			prevSemaphore = currentSemaphore;
 		}
 
-		//DrawShadow
+		//DrawShadow - generate shadow map
 		{
 			currentSemaphore = standardShadow.semaphore;
-
 			submitInfo.pWaitSemaphores = &prevSemaphore;
 			submitInfo.pCommandBuffers = &standardShadow.commandBuffer;
 			submitInfo.pSignalSemaphores = &currentSemaphore;
 			VK_CHECK_RESULT(vkQueueSubmit(queue /*standardShadow.queue*/, 1, &submitInfo, VK_NULL_HANDLE))
-
 			prevSemaphore = currentSemaphore;
 		}
 
 		//postProcessQueue
+		// 0. voxel cone tracing pass
+		// 1. lighting pass
+		// 2. HDR highlight pass
+		// 3-6. hightlight blur pass
+		// 7. tone mapping pass
 		{
 			//prevSemaphore = voxelizator.createMipmaps(prevSemaphore);
-			for (auto& postProcess : postProcessStages)
+			int i = 0;
+			for (auto& post : postProcessStages)
 			{
-				currentSemaphore = postProcess->postProcessSemaphore;
+				//if (i >= 2 && i++ <= 6) continue;
 
+				currentSemaphore = post->postProcessSemaphore;
 				submitInfo.pWaitSemaphores = &prevSemaphore;
-				submitInfo.pCommandBuffers = &(postProcess->commandBuffer);
+				submitInfo.pCommandBuffers = &(post->commandBuffer);
 				submitInfo.pSignalSemaphores = &currentSemaphore;
 				VK_CHECK_RESULT(vkQueueSubmit(queue /*postProcess->material->queue*/, 1, &submitInfo, VK_NULL_HANDLE))
-
 				prevSemaphore = currentSemaphore;
 			}
 		}
 
 		//frameQueue
 		{
-			currentSemaphore = semaphores.renderComplete;
-
 			submitInfo.pWaitSemaphores = &prevSemaphore;
 			submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 			submitInfo.pSignalSemaphores = &semaphores.renderComplete;
@@ -2012,35 +2055,60 @@ public:
 	{
 		VulkanExampleBase::prepare();
 
-		loadAssets();  // Prepare assets
+		createSemaphores();
+		createGbuffers();
+		createSceneBuffer();
+		createImageViews();
 
-		deferredSetup();
 		shadowSetup();
+		voxelizerSetup();
+		postprocessesSetup();
 		initLights();
-		prepareUniformBuffers();
+		loadAssets();  // Textures + models
 
-		preparePipelines();
+		LoadGlobalMaterials();
+		LoadPostProcessMaterials();
+		LoadFrameBufferMaterial();
+
+		createDeferredRenderPass();
+		createDeferredFramebuffer();
+		for (const auto& mat : materialManager)  // Pipeline
+		{
+			mat->connectRenderPass(deferredRenderPass);
+			mat->createGraphicsPipeline({width, height});
+		}
+
+		for (const auto& obj : objectManager)
+		{
+			obj->createShadowMaterial(
+				standardShadow.commandPool, standardShadow.queue, standardShadow.renderPass,
+				glm::vec2(standardShadow.Extent2D.width, standardShadow.Extent2D.height),
+				glm::vec2(0.0, 0.0), lightingMaterial->shadowConstantBuffer); // !!!!!!!
+		}
 
 		buildCommandBuffers();  // override, build drawCmdBuffers (frame buffers)
 		buildDeferredCommandBuffer();
+		standardShadow.createCommandBuffers();
+		voxelizator.createCommandBuffers();
+		for (const auto& post : postProcessStages)
+		{
+			post->createCommandBuffers();
+		}
+
+		// Voxelization
+		voxelizator.createMipmaps(voxelizator.createVoxels(camera, VK_NULL_HANDLE));
+		
 		prepared = true;
 	}
 
-
-
-
-
-
-
-
-
-	void render()  // replace VulkanExampleBase::renderFrame
+	void render()
 	{
 		if (!prepared)
 			return;
-		draw();
 
 		updateUniformBuffers(frameTimer);
+		draw();
+
 		//updateUniformBufferDeferredLights();
 		
 		//if (camera.updated) 
@@ -2056,24 +2124,19 @@ public:
 	}
 
 
-
-
-
-
-
-
-
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay) override
 	{
 		if (overlay->header("Settings")) {
-			if (overlay->comboBox("Display", &debugDisplayTarget, { "Final composition", "Shadows", "Position", "Normals", "Albedo", "Specular" }))
+			if (overlay->comboBox("Lighting", &drawMode, {"DI Only", "AO Only", "DI + GI", "DI + AO", "DI + GI + AO" }))
 			{
-				updateUniformBufferDeferredLights();
+				//updateUniformBufferDeferredLights();
 			}
-			bool shadows = (uboComposition.useShadows == 1);
-			if (overlay->checkBox("Shadows", &shadows)) {
-				uboComposition.useShadows = shadows;
-				updateUniformBufferDeferredLights();
+
+			if (overlay->checkBox("GBuffers view", &bGbufferView)) {
+				//
+			}
+			if (overlay->checkBox("Rotate main light", &bRotateMainLight)) {
+				//
 			}
 		}
 	}

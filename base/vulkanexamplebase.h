@@ -369,6 +369,8 @@ public:
 	virtual void getEnabledFeatures();
 	/** @brief (Virtual) Called after the physical device extensions have been read, can be used to enable extensions based on the supported extension listing*/
 	virtual void getEnabledExtensions();
+	/** @brief (Virtual) Setup suitable depth format */
+	virtual void getDepthFormat();
 
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
 	virtual void prepare();

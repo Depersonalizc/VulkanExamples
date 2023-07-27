@@ -20,7 +20,10 @@ public:
 		device = NULL;
 		physicalDevice = NULL;
 		surface = NULL;
-		pExtent2D = NULL;
+		//pExtent2D = NULL;
+		width = 0;
+		height = 0;
+
 		LayerCount = 0;
 
 		miplevel = 0;
@@ -92,18 +95,8 @@ public:
 	void createDepthResources()
 	{
 		VkFormat depthFormat = findDepthFormat();
-
-		if (bVRmode)
-		{
-			createImage(pExtent2D->width / 2, pExtent2D->height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-			depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-		}
-		else
-		{
-			createImage(pExtent2D->width, pExtent2D->height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-			depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-		}
-
+		createImage(width, height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+		depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 		transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, commandPool);
 	}
 	
@@ -227,7 +220,9 @@ public:
 
 
 	void Initialize(VkDevice deviceParam, VkPhysicalDevice physicalDeviceParam, VkSurfaceKHR surfaceParam,
-		VkExtent2D* extent2DParami, int LayerCount, uint32_t miplevelParam, glm::vec2 Scales, bool compute, unsigned int drawModeParam, uint32_t vertexSizeParam, bool bDepth, VkImageView depthImageParam);
+		//VkExtent2D* extent2DParami, 
+		int width, int height,
+		int LayerCount, uint32_t miplevelParam, glm::vec2 Scales, bool compute, unsigned int drawModeParam, uint32_t vertexSizeParam, bool bDepth, VkImageView depthImageParam);
 
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 
@@ -258,7 +253,7 @@ public:
 
 	glm::vec2 getImageSize()
 	{
-		return glm::vec2(widthScale * pExtent2D->width, heightScale * pExtent2D->height);
+		return glm::vec2(widthScale * width, heightScale * height);
 	}
 
 	glm::vec2 getScreenScale()
@@ -296,7 +291,8 @@ public:
 	singleTriangular* offScreenPlane;
 
 
-	VkExtent2D* pExtent2D;
+	//VkExtent2D* pExtent2D;
+	int width, height;
 	int LayerCount;
 
 	Material* material;
@@ -310,8 +306,7 @@ public:
 	float widthScale;
 	float heightScale;
 
-	bool vrMode;
-	bool isCSPostProcess;//Post Process For Compute Shader
+	bool isCSPostProcess; //Post Process For Compute Shader
 
 	bool bActivate;
 

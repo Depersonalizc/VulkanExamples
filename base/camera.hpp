@@ -6,6 +6,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
+#pragma once
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -20,17 +22,24 @@ private:
 
 	void updateViewMatrix()
 	{
+#define FIX_MAT false
 		glm::mat4 rotM = glm::mat4(1.0f);
 		glm::mat4 transM;
 
 		rotM = glm::rotate(rotM, glm::radians(rotation.x * (flipY ? -1.0f : 1.0f)), glm::vec3(1.0f, 0.0f, 0.0f));
 		rotM = glm::rotate(rotM, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 		rotM = glm::rotate(rotM, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
+		
 		glm::vec3 translation = position;
 		if (flipY) {
 			translation.y *= -1.0f;
 		}
+
+#if FIX_MAT
+		translation = -translation;
+		rotM = glm::transpose(rotM);
+#endif
+
 		transM = glm::translate(glm::mat4(1.0f), translation);
 
 		if (type == CameraType::firstperson)
