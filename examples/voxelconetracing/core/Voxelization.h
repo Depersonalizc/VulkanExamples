@@ -59,7 +59,7 @@ public:
 		cleanUp();
 
 
-		//vkDestroyRenderPass(device, renderPass, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
 		vkDestroyFramebuffer(device, frameBuffer, nullptr);
 	}
 

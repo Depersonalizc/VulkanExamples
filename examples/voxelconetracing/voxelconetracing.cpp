@@ -5,7 +5,7 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
-
+#include <unistd.h>
 #include "vulkanexamplebase.h"
 #include "VulkanFrameBuffer.hpp"
 
@@ -144,32 +144,21 @@ public:
 
 	~VulkanExample()  // TODO
 	{
-		// Frame buffers
+		AssetDatabase::GetInstance()->cleanUp();
+		destroyPlaneGeos();
 
 		standardShadow.cleanUp();
-		AssetDatabase::GetInstance()->cleanUp();
+		voxelizer.shutDown();
 
-		delete voxelConetracingMaterial;  // default cleanup, TODO
-		delete lightingMaterial;
-		delete hdrHighlightMaterial;
-		delete HBMaterial;
-		delete VBMaterial;
-		delete HBMaterial2;
-		delete VBMaterial2;
-		delete lastPostProcessMaterial;
-		delete frameBufferMaterial;
-		for (auto& debugMat : debugDisplayMaterials)
-			delete debugMat;
+		destroyGlobalMaterials();
+		destroyPostProcessMaterials();
+		destroyFrameBufferMaterial();
 
-		//delete offScreenPlaneforPostProcess;
-
-		//vkDestroyPipeline(device, pipelines.deferred, nullptr);
-		//vkDestroyPipeline(device, pipelines.offscreen, nullptr);
-		//vkDestroyPipeline(device, pipelines.shadowpass, nullptr);
-
-		//vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-
-		//vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		for (auto& post : postProcessStages)
+		{
+			post->cleanUp();
+			delete post;
+		}
 
 		destroySemaphores();
 	}
@@ -1050,6 +1039,12 @@ public:
 		//offScreenPlaneforPostProcess = new singleTriangular;
 		//offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
 	}
+	void destroyPlaneGeos()
+	{
+		delete offScreenPlane;
+		delete debugDisplayPlane;
+		//delete offScreenPlaneforPostProcess;
+	}
 
 	// TODO: Change voxelizer.Initialize (Don't directly access surface)
 	void LoadObjects()
@@ -1559,6 +1554,10 @@ public:
 		frameBufferMaterial->connectRenderPass(renderPass);
 		frameBufferMaterial->createGraphicsPipeline(glm::vec2(width, height), glm::vec2(0.0, 0.0));
 	}
+	void destroyFrameBufferMaterial()
+	{
+		delete frameBufferMaterial;
+	}
 
 	// GOOD
 	void LoadPostProcessMaterials()  // Must be called after all the PP handles have been initialized
@@ -1610,6 +1609,16 @@ public:
 		lastPostProcessMaterial->connectRenderPass(theLastPostProcess->renderPass);
 		lastPostProcessMaterial->createGraphicsPipeline(glm::vec2(theLastPostProcess->width, theLastPostProcess->height), glm::vec2(0.0, 0.0));
 	}
+	void destroyPostProcessMaterials()
+	{
+		delete hdrHighlightMaterial;
+		delete HBMaterial;
+		delete VBMaterial;
+		delete HBMaterial2;
+		delete VBMaterial2;
+		delete lastPostProcessMaterial;
+	}
+	
 	// GOOD
 	void LoadGlobalMaterials()
 	{
@@ -1662,6 +1671,14 @@ public:
 		debugDisplayMaterials[10]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 2.0, debugHeight * 3.0));
 		debugDisplayMaterials[11]->createGraphicsPipeline(glm::vec2(debugWidth, debugHeight), glm::vec2(debugWidth * 3.0, debugHeight * 3.0));
 	}
+	void destroyGlobalMaterials()
+	{
+		delete voxelConetracingMaterial;  // default cleanup, TODO
+		delete lightingMaterial;
+		for (auto& debugMat : debugDisplayMaterials)
+			delete debugMat;
+	}
+
 	// GOOD
 	// Initialize materialManager
 	void LoadObjectMaterials()
@@ -2084,7 +2101,9 @@ public:
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
 	void prepare() override
 	{
-		VulkanExampleBase::prepare();
+		sleep(10);
+
+        VulkanExampleBase::prepare();
 
 		createSemaphores();
 		createGbuffers();
@@ -2132,7 +2151,7 @@ public:
 		prepared = true;
 	}
 
-	void render()
+	void render() override
 	{
 		if (!prepared)
 			return;

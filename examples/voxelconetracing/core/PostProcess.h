@@ -48,7 +48,7 @@ public:
 
 	~PostProcess()
 	{
-		vkDestroySemaphore(device, postProcessSemaphore, nullptr);
+		
 	}
 
 	void cleanUp()
@@ -64,6 +64,7 @@ public:
 			vkDestroyImage(device, depthImage, nullptr);
 		}
 		
+		vkDestroySemaphore(device, postProcessSemaphore, nullptr);
 	}
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)

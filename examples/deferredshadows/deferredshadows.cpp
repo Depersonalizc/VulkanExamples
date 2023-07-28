@@ -778,7 +778,7 @@ public:
 
 	void prepare()
 	{
-		VulkanExampleBase::prepare();
+        VulkanExampleBase::prepare();
 		loadAssets();
 		deferredSetup();
 		shadowSetup();
@@ -803,6 +803,8 @@ public:
 		{
 			updateUniformBufferOffscreen();
 		}
+		loadAssets();
+
 	}
 
 	virtual void viewChanged()

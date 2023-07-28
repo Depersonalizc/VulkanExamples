@@ -24,8 +24,8 @@ function(buildExample EXAMPLE_NAME)
 	IF(${EXAMPLE_NAME} STREQUAL "voxelconetracing")
 		file(GLOB ADD_SOURCE "${EXAMPLE_FOLDER}/actors/*.h"    "${EXAMPLE_FOLDER}/actors/*.cpp"
 		                     "${EXAMPLE_FOLDER}/assets/*.h"    "${EXAMPLE_FOLDER}/assets/*.cpp"    "${EXAMPLE_FOLDER}/assets/*.cc"
-							 "${EXAMPLE_FOLDER}/core/*.h"      "${EXAMPLE_FOLDER}/core/*.cpp")
-							 #"${EXAMPLE_FOLDER}/include/stb-master/stb_image.h")
+							 "${EXAMPLE_FOLDER}/core/*.h"      "${EXAMPLE_FOLDER}/core/*.cpp"
+							 "${EXAMPLE_FOLDER}/external/stb-master/stb_image.h")
 	    SET(SOURCE ${SOURCE} ${ADD_SOURCE})
 	ENDIF()
 	# Add shaders

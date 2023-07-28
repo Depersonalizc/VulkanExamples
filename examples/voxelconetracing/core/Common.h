@@ -1,18 +1,18 @@
 #pragma once
 
-#define FEATURE_OVR false
-#define FEATURE_GLFW false
+#if defined(__ANDROID__)
+#include <stdio.h>                      // Required for: FILE, snprintf
+#include <android/asset_manager.h>      // Required for: AAssetManager
+#define fopen(name, mode) android_fopen(name, mode)
+void InitAssetManager(AAssetManager* manager, const char* dataPath);   // Initialize asset manager from android app
+FILE* android_fopen(const char* fileName, const char* mode);           // Replacement for fopen() -> Read-only!
+#endif
 
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include <array>
 
-//#if FEATURE_GLFW
-//#define GLFW_INCLUDE_VULKAN
-//#include <GLFW/glfw3.h>
-//#endif
-//#include <vulkanexamplebase.h>
 #include <VulkanTools.h>
 
 #define GLM_FORCE_RADIANS
