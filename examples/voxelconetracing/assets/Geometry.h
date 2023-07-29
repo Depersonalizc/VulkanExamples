@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/Common.h"  // android
 #include "../core/Vertex.h"
 #include "../assets/tiny_obj_loader.h"
 #include "../assets/Asset.h"

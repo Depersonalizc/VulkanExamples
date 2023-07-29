@@ -5,7 +5,9 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
+#if defined(__ANDROID__)
 #include <unistd.h>
+#endif
 #include "vulkanexamplebase.h"
 #include "VulkanFrameBuffer.hpp"
 
@@ -28,8 +30,8 @@
 
 // Shadowmap properties
 #if defined(__ANDROID__)
-#define SHADOWMAP_WIDTH 2048
-#define SHADOWMAP_HEIGHT 512
+#define SHADOWMAP_WIDTH 4096
+#define SHADOWMAP_HEIGHT 1024
 #else
 #define SHADOWMAP_WIDTH 4096
 #define SHADOWMAP_HEIGHT 1024
@@ -2101,7 +2103,9 @@ public:
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
 	void prepare() override
 	{
+#if defined(__ANDROID__)
 		sleep(10);
+#endif
 
         VulkanExampleBase::prepare();
 

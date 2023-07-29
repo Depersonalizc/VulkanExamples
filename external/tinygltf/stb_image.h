@@ -319,6 +319,7 @@ RECENT REVISION HISTORY:
 #include <stdio.h>
 #endif // STBI_NO_STDIO
 
+
 #define STBI_VERSION 1
 
 enum
@@ -1215,6 +1216,7 @@ static FILE *stbi__fopen(char const *filename, char const *mode)
 }
 
 
+/*
 STBIDEF stbi_uc *stbi_load(char const *filename, int *x, int *y, int *comp, int req_comp)
 {
    FILE *f = stbi__fopen(filename, "rb");
@@ -1224,6 +1226,7 @@ STBIDEF stbi_uc *stbi_load(char const *filename, int *x, int *y, int *comp, int 
    fclose(f);
    return result;
 }
+*/
 
 STBIDEF stbi_uc *stbi_load_from_file(FILE *f, int *x, int *y, int *comp, int req_comp)
 {

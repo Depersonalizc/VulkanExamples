@@ -1,12 +1,14 @@
 #pragma once
 
 #if defined(__ANDROID__)
-#include <stdio.h>                      // Required for: FILE, snprintf
-#include <android/asset_manager.h>      // Required for: AAssetManager
+#include <VulkanAndroid.h>
+#include <stdio.h>                      // Required for: FILE, snprintf, ...
 #define fopen(name, mode) android_fopen(name, mode)
-void InitAssetManager(AAssetManager* manager, const char* dataPath);   // Initialize asset manager from android app
+//void InitAssetManager(AAssetManager* manager, const char* dataPath);   // Initialize asset manager from android app
 FILE* android_fopen(const char* fileName, const char* mode);           // Replacement for fopen() -> Read-only!
 #endif
+
+
 
 #include <iostream>
 #include <vector>
@@ -26,39 +28,10 @@ FILE* android_fopen(const char* fileName, const char* mode);           // Replac
 
 #include <chrono>
 
-static const std::string getShaderPath(std::string shaderfile)
-{
-	return getShaderBasePath() + "glsl/voxelconetracing/" + shaderfile;
-}
-
-static const std::string getModelPath(std::string modelfile)
-{
-	return getAssetPath() + "models/vct/" + modelfile;
-}
-
-static const std::string getTexturePath(std::string texturefile)
-{
-	return getAssetPath() + "textures/vct/" + texturefile;
-}
-
-static std::vector<char> readFile(const std::string filename)
-{
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open())
-	{
-		throw std::runtime_error("failed to open file!");
-	}
-
-	size_t fileSize = (size_t)file.tellg();
-	std::vector<char> buffer(fileSize);
-
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-
-	file.close();
-	return buffer;
-}
+const std::string getShaderPath(std::string shaderfile);
+const std::string getModelPath(std::string modelfile);
+const std::string getTexturePath(std::string texturefile);
+std::vector<char> readFile(const std::string filename);
 
 enum GBUFFER
 {

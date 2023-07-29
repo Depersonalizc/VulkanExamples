@@ -12,7 +12,8 @@ file(GLOB EXAMPLE_SRC "${SRC_DIR}/*.cpp"
                       "${SRC_DIR}/actors/*.h"    "${SRC_DIR}/actors/*.cpp"
                       "${SRC_DIR}/assets/*.h"    "${SRC_DIR}/assets/*.cpp"    "${SRC_DIR}/assets/*.cc"
                       "${SRC_DIR}/core/*.h"      "${SRC_DIR}/core/*.cpp"
-                      "${SRC_DIR}/external/stb-master/stb_image.h")
+                      "${SRC_DIR}/external/stb-master/stb_image.h"
+                      )
 
 add_library(native-lib SHARED ${EXAMPLE_SRC})
 
@@ -22,12 +23,13 @@ add_subdirectory(../base ${CMAKE_SOURCE_DIR}/../base)
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
 
-include_directories(${BASE_DIR})
-include_directories(${EXTERNAL_DIR})
-include_directories(${EXTERNAL_DIR}/glm)
-include_directories(${EXTERNAL_DIR}/imgui)
-#include_directories(${EXTERNAL_DIR}/tinygltf)
-include_directories(${ANDROID_NDK}/sources/android/native_app_glue)
+include_directories(${BASE_DIR}
+                    ${EXTERNAL_DIR}
+                    ${EXTERNAL_DIR}/glm
+                    ${EXTERNAL_DIR}/imgui
+                    ${EXTERNAL_DIR}/vk_video
+                    ${EXTERNAL_DIR}/vulkan
+                    ${ANDROID_NDK}/sources/android/native_app_glue)
 
 target_link_libraries(
     native-lib

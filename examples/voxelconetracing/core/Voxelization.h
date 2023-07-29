@@ -7,8 +7,11 @@
 //#include "../actors/Camera.h"
 #include "../actors/Object.h"
 
+#if defined(__ANDROID__)
+#define VOXEL_SIZE 256
+#else
 #define VOXEL_SIZE 512
-
+#endif
 
 class Voxelization
 {
@@ -215,8 +218,10 @@ public:
 			submitInfo.signalSemaphoreCount = 1;
 			submitInfo.pSignalSemaphores = &currentSemaphore;
 
-			if (vkQueueSubmit(VXGITextureMaterial->queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
-			{
+			auto res = vkQueueSubmit(VXGITextureMaterial->queue, 1, &submitInfo, VK_NULL_HANDLE);
+			if (res != VK_SUCCESS) {
+//			if (vkQueueSubmit(VXGITextureMaterial->queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+//			{
 				throw std::runtime_error("failed to submit draw command buffer!");
 			}
 

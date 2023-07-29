@@ -1,7 +1,6 @@
 #include "Texture.h"
 
-
-//#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
 #include "../external/stb-master/stb_image.h"
 
 void Texture::LoadFromFilename(VkDevice deviceParam, VkPhysicalDevice physicalDeviceParam, VkCommandPool commandPoolParam, VkQueue queueParam, std::string pathParam)

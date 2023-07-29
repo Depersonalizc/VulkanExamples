@@ -1,3 +1,4 @@
+#if 0
 #pragma once
 #include "../core/Common.h"
 #include "../core/Vertex.h"
@@ -47,3 +48,4 @@ private:
 	
 };
 
+#endif

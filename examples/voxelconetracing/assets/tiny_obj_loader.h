@@ -10,6 +10,12 @@
 #include <vector>
 #include <map>
 
+#if defined(__ANDROID__)
+#include <stdio.h>
+#include <malloc.h>
+#endif
+#include "../core/Common.h"
+
 namespace tinyobj {
 
 	typedef struct {
@@ -23,7 +29,7 @@ namespace tinyobj {
 		float shininess;
 		float ior;      // index of refraction
 		float dissolve; // 1 == opaque; 0 == fully transparent
-						// illumination model (see http://www.fileformat.info/format/material/)
+		// illumination model (see http://www.fileformat.info/format/material/)
 		int illum;
 
 		std::string ambient_texname;
@@ -52,18 +58,18 @@ namespace tinyobj {
 		virtual ~MaterialReader() {}
 
 		virtual std::string operator()(const std::string &matId,
-			std::vector<material_t> &materials,
-			std::map<std::string, int> &matMap) = 0;
+									   std::vector<material_t> &materials,
+									   std::map<std::string, int> &matMap) = 0;
 	};
 
 	class MaterialFileReader : public MaterialReader {
 	public:
 		MaterialFileReader(const std::string &mtl_basepath)
-			: m_mtlBasePath(mtl_basepath) {}
+				: m_mtlBasePath(mtl_basepath) {}
 		virtual ~MaterialFileReader() {}
 		virtual std::string operator()(const std::string &matId,
-			std::vector<material_t> &materials,
-			std::map<std::string, int> &matMap);
+									   std::vector<material_t> &materials,
+									   std::map<std::string, int> &matMap);
 
 	private:
 		std::string m_mtlBasePath;
@@ -75,20 +81,32 @@ namespace tinyobj {
 	/// Returns empty string when loading .obj success.
 	/// 'mtl_basepath' is optional, and used for base path for .mtl file.
 	std::string LoadObj(std::vector<shape_t> &shapes,       // [output]
-		std::vector<material_t> &materials, // [output]
-		const char *filename, const char *mtl_basepath = NULL);
+						std::vector<material_t> &materials, // [output]
+						const char *filename, const char *mtl_basepath = NULL);
 
 	/// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 	/// std::istream for materials.
 	/// Returns empty string when loading .obj success.
 	std::string LoadObj(std::vector<shape_t> &shapes,       // [output]
-		std::vector<material_t> &materials, // [output]
-		std::istream &inStream, MaterialReader &readMatFn);
+						std::vector<material_t> &materials, // [output]
+#if defined(__ANDROID__)
+						FILE* file,
+#else
+						std::istream& inStream,
+#endif
+						MaterialReader &readMatFn);
 
 	/// Loads materials into std::map
 	/// Returns an empty string if successful
 	std::string LoadMtl(std::map<std::string, int> &material_map,
-		std::vector<material_t> &materials, std::istream &inStream);
+						std::vector<material_t> &materials,
+#if defined(__ANDROID__)
+						FILE* file
+#else
+						std::istream &inStream
+#endif
+	);
+
 }
 
 #endif // _TINY_OBJ_LOADER_H

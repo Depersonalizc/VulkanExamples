@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../core/Common.h"
 #include "../assets/Geometry.h"
 
 #include "../assets/Material.h"
