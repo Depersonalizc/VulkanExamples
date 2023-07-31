@@ -8,7 +8,7 @@
 #include "../actors/Object.h"
 
 #if defined(__ANDROID__)
-#define VOXEL_SIZE 256
+#define VOXEL_SIZE 420
 #else
 #define VOXEL_SIZE 512
 #endif

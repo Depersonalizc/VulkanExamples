@@ -379,6 +379,9 @@ void VulkanExampleBase::renderLoop()
 			auto tEnd = std::chrono::high_resolution_clock::now();
 			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 			frameTimer = tDiff / 1000.0f;
+
+//			if (!firstframe) continue;  // TODO
+
 			camera.update(frameTimer);
 			// Convert to clamped timer value
 			if (!paused)

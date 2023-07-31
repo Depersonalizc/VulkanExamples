@@ -5,9 +5,12 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
-#if defined(__ANDROID__)
+#define SLEEP false
+
+#if defined(__ANDROID__) and SLEEP
 #include <unistd.h>
 #endif
+
 #include "vulkanexamplebase.h"
 #include "VulkanFrameBuffer.hpp"
 
@@ -47,7 +50,6 @@
 //// Must match the LIGHT_COUNT define in the shadow and deferred shaders
 //#define LIGHT_COUNT 3
 
-
 class VulkanExample : public VulkanExampleBase
 {
 public:
@@ -56,9 +58,9 @@ public:
 	float zFar = 100.0f;
 	int32_t drawMode = 4;
 	bool bGbufferView = false;
-	bool bRotateMainLight = true;
+	bool bRotateMainLight = false;
 
-	float mainLightAngle = 1.0f;
+	float mainLightAngle = 47.5f;
 	std::vector<DirectionalLight> directionLights;
 
 	StandardShadow standardShadow;
@@ -128,17 +130,16 @@ public:
 
 		// Camera
 		camera.type = Camera::CameraType::firstperson;
+        camera.flipY = true;
 #if defined(__ANDROID__)
 		camera.movementSpeed = 2.5f;
 #else
 		camera.movementSpeed = 5.0f;
 		camera.rotationSpeed = 0.25f;
 #endif
-		camera.position = { -10.0f, -1.7f, 2.0f };
-		camera.setRotation({ 0.0f, 250.0f, 0.0f });
-		camera.flipY = true;
+        camera.position = { -10.0f, +1.7f, 2.0f };
+        camera.setRotation({ 0.0f, 250.0f, 0.0f });
 		camera.setPerspective(45.0f, (float)width / (float)height, zNear, zFar);
-		camera.flipY = false;
 		timerSpeed *= 0.25f;
 
 		paused = true;
@@ -262,7 +263,7 @@ public:
 		VK_CHECK_RESULT(vkCreateImageView(device, &imageViewCI, nullptr, &depthStencil.view));
 	}
 
-	void mouseMoved(double x, double y, bool &handled) override
+	/*void mouseMoved(double x, double y, bool &handled) override
 	{
 		int32_t dx = (int32_t)mousePos.x - x;
 		int32_t dy = (int32_t)mousePos.y - y;
@@ -281,7 +282,7 @@ public:
 		}
 		
 		handled = true;
-	}
+	}*/
 
 	// GOOD
 	DirectionalLight initLight(glm::vec3 pos, glm::vec3 target, glm::vec3 color)
@@ -644,25 +645,32 @@ public:
 		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &deferredRenderPass));
 	}
 
+    void updateLightUniformBuffers(float deltaTime)
+    {
+        mainLightAngle += static_cast<float>(deltaTime) * 0.2f;
+        swingMainLight();
+        SetDirectionLightMatrices(directionLights[0], 19.0f, 5.0f, 0.0f, 20.0f);
+
+        ShadowUniformBuffer subo = {};
+        subo.viewProjMat = directionLights[0].projMat * directionLights[0].viewMat;
+        subo.invViewProjMat = glm::inverse(subo.viewProjMat);
+
+        void* shadowdata;
+        vkMapMemory(device, lightingMaterial->shadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &shadowdata);
+        memcpy(shadowdata, &subo, sizeof(ShadowUniformBuffer));
+        vkUnmapMemory(device, lightingMaterial->shadowConstantBufferMemory);
+    }
+
 	// GOOD
 	void updateUniformBuffers(float deltaTime)
 	{
+        //if (!firstframe) return;
+
 		updateDrawMode();
 
-		if (bRotateMainLight)
+		if (bRotateMainLight)  // TODO
 		{
-			mainLightAngle += static_cast<float>(deltaTime) * 0.2f;
-			swingMainLight();
-			SetDirectionLightMatrices(directionLights[0], 19.0f, 5.0f, 0.0f, 20.0f);
-
-			ShadowUniformBuffer subo = {};
-			subo.viewProjMat = directionLights[0].projMat * directionLights[0].viewMat;
-			subo.invViewProjMat = glm::inverse(subo.viewProjMat);
-
-			void* shadowdata;
-			vkMapMemory(device, lightingMaterial->shadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &shadowdata);
-			memcpy(shadowdata, &subo, sizeof(ShadowUniformBuffer));
-			vkUnmapMemory(device, lightingMaterial->shadowConstantBufferMemory);
+            updateLightUniformBuffers(deltaTime);
 		}
 
 		UniformBufferObject ubo = {};
@@ -683,13 +691,8 @@ public:
 			if (thisObject->bRoll)
 				thisObject->UpdateOrbit(deltaTime * thisObject->rollSpeed, 0.0f, 0.0f);
 
-			ubo.modelMat = thisObject->modelMat;
-			ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;
-			//glm::mat4 A = ubo.modelMat;
-			//A[3] = glm::vec4(0, 0, 0, 1);
-			ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));
-
 			//shadow
+			if (firstframe || thisObject->bRoll)
 			{
 				void* data;
 				//vkMapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &data);
@@ -702,15 +705,28 @@ public:
 				vkUnmapMemory(device, thisObject->shadowMaterial->objectUniformMemory);
 			}
 
-			for (size_t k = 0; k < thisObject->materials.size(); k++)
-			{
-				void* data;
-				vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
-				memcpy(data, &ubo, sizeof(UniformBufferObject));
-				vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
-			}
+
+			ubo.modelMat = thisObject->modelMat;
+			ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;
+			//glm::mat4 A = ubo.modelMat;
+			//A[3] = glm::vec4(0, 0, 0, 1);
+			ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));
+
+            if (1)
+            {
+                for (size_t k = 0; k < thisObject->materials.size(); k++) {
+                    void *data;
+                    vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0,
+                                sizeof(UniformBufferObject), 0, &data);
+                    memcpy(data, &ubo, sizeof(UniformBufferObject));
+                    vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
+                }
+            }
 		}
 
+//		if (!firstframe) return;
+
+		if (1)
 		{
 			UniformBufferObject offScreenUbo = {};
 
@@ -727,11 +743,15 @@ public:
 			offScreenPlane->updateVertexBuffer(offScreenUbo.InvViewProjMat);
 			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
 
-			void* data;
-			vkMapMemory(device, lightingMaterial->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
+			void *data;
+			vkMapMemory(device, lightingMaterial->uniformBufferMemory, 0,
+						sizeof(UniformBufferObject), 0, &data);
 			memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
 			vkUnmapMemory(device, lightingMaterial->uniformBufferMemory);
+		}
 
+		if (firstframe || bRotateMainLight)
+		{
 			void* directionLightsData;
 
 			vkMapMemory(device, voxelConetracingMaterial->directionalLightBufferMemory, 0, sizeof(DirectionalLight) * directionLights.size(), 0, &directionLightsData);
@@ -755,7 +775,7 @@ public:
 			debugDisplayUbo.modelViewProjMat = debugDisplayUbo.viewProjMat;
 			debugDisplayUbo.InvTransposeMat = debugDisplayUbo.modelMat;
 			debugDisplayUbo.cameraWorldPos = ubo.cameraWorldPos;
-				
+
 			debugDisplayPlane->updateVertexBuffer(debugDisplayUbo.InvViewProjMat);
 
 			for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
@@ -767,62 +787,64 @@ public:
 			}
 		}
 
-		for (size_t i = 0; i < postProcessStages.size(); i++)
+		if (1)
 		{
-			UniformBufferObject offScreenUbo = {};
+			for (size_t i = 0; i < postProcessStages.size(); i++) {
+				UniformBufferObject offScreenUbo = {};
 
-			offScreenUbo.modelMat = glm::mat4(1.0);
+				offScreenUbo.modelMat = glm::mat4(1.0);
 
-			VoxelRenderMaterial* isVXGIMat = dynamic_cast<VoxelRenderMaterial*>(postProcessStages[i]->material);
+				VoxelRenderMaterial *isVXGIMat = dynamic_cast<VoxelRenderMaterial *>(postProcessStages[i]->material);
 
-			if (isVXGIMat != NULL)
-			{
-				offScreenUbo.modelMat = voxelizer.standardObject->modelMat;
+				if (isVXGIMat != NULL) {
+					offScreenUbo.modelMat = voxelizer.standardObject->modelMat;
+				}
+
+				offScreenUbo.viewMat = ubo.viewMat;
+				offScreenUbo.projMat = ubo.projMat;
+				offScreenUbo.viewProjMat = ubo.viewProjMat;
+				offScreenUbo.InvViewProjMat = ubo.InvViewProjMat;
+				offScreenUbo.modelViewProjMat = offScreenUbo.viewProjMat * offScreenUbo.modelMat;
+				offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
+				offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
+
+				//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+
+				void *data;
+				vkMapMemory(device, postProcessStages[i]->material->uniformBufferMemory, 0,
+							sizeof(UniformBufferObject), 0, &data);
+				memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
+				vkUnmapMemory(device, postProcessStages[i]->material->uniformBufferMemory);
+
+				BlurMaterial *isBlurMat = dynamic_cast<BlurMaterial *>(postProcessStages[i]->material);
+				ComputeBlurMaterial *isComputeBlurMat = dynamic_cast<ComputeBlurMaterial *>(postProcessStages[i]->material);
+
+				if (isBlurMat != NULL) {
+					BlurUniformBufferObject blurUbo;
+
+					blurUbo.widthGap = isBlurMat->extent.x * isBlurMat->widthScale;
+					blurUbo.heightGap = isBlurMat->extent.y * isBlurMat->heightScale;
+
+					void *data;
+					vkMapMemory(device, isBlurMat->blurUniformBufferMemory, 0,
+								sizeof(BlurUniformBufferObject), 0, &data);
+					memcpy(data, &blurUbo, sizeof(BlurUniformBufferObject));
+					vkUnmapMemory(device, isBlurMat->blurUniformBufferMemory);
+				} else if (isComputeBlurMat != NULL) {
+					BlurUniformBufferObject blurUbo;
+					blurUbo.widthGap = postProcessStages[i]->getImageSize().x;
+					blurUbo.heightGap = postProcessStages[i]->getImageSize().y;
+					void *data;
+					vkMapMemory(device, isComputeBlurMat->blurUniformBufferMemory, 0,
+								sizeof(BlurUniformBufferObject), 0, &data);
+					memcpy(data, &blurUbo, sizeof(BlurUniformBufferObject));
+					vkUnmapMemory(device, isComputeBlurMat->blurUniformBufferMemory);
+				}
+
 			}
-
-			offScreenUbo.viewMat = ubo.viewMat;
-			offScreenUbo.projMat = ubo.projMat;
-			offScreenUbo.viewProjMat = ubo.viewProjMat;
-			offScreenUbo.InvViewProjMat = ubo.InvViewProjMat;
-			offScreenUbo.modelViewProjMat = offScreenUbo.viewProjMat * offScreenUbo.modelMat;
-			offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
-			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
-
-			void* data;
-			vkMapMemory(device, postProcessStages[i]->material->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
-			memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
-			vkUnmapMemory(device, postProcessStages[i]->material->uniformBufferMemory);
-
-			BlurMaterial* isBlurMat = dynamic_cast<BlurMaterial*>(postProcessStages[i]->material);
-			ComputeBlurMaterial* isComputeBlurMat = dynamic_cast<ComputeBlurMaterial*>(postProcessStages[i]->material);
-
-			if (isBlurMat != NULL)
-			{
-				BlurUniformBufferObject blurUbo;
-
-				blurUbo.widthGap = isBlurMat->extent.x * isBlurMat->widthScale;
-				blurUbo.heightGap = isBlurMat->extent.y * isBlurMat->heightScale;
-
-				void* data;
-				vkMapMemory(device, isBlurMat->blurUniformBufferMemory, 0, sizeof(BlurUniformBufferObject), 0, &data);
-				memcpy(data, &blurUbo, sizeof(BlurUniformBufferObject));
-				vkUnmapMemory(device, isBlurMat->blurUniformBufferMemory);
-			}
-			else if (isComputeBlurMat != NULL)
-			{
-				BlurUniformBufferObject blurUbo;
-				blurUbo.widthGap = postProcessStages[i]->getImageSize().x;
-				blurUbo.heightGap = postProcessStages[i]->getImageSize().y;
-				void* data;
-				vkMapMemory(device, isComputeBlurMat->blurUniformBufferMemory, 0, sizeof(BlurUniformBufferObject), 0, &data);
-				memcpy(data, &blurUbo, sizeof(BlurUniformBufferObject));
-				vkUnmapMemory(device, isComputeBlurMat->blurUniformBufferMemory);
-			}
-
 		}
 
+		if (1)
 		{
 			UniformBufferObject offScreenUbo = {};
 
@@ -2103,9 +2125,11 @@ public:
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
 	void prepare() override
 	{
-#if defined(__ANDROID__)
+/*
+#if defined(__ANDROID__) and SLEEP
 		sleep(10);
 #endif
+*/
 
         VulkanExampleBase::prepare();
 
@@ -2123,6 +2147,7 @@ public:
 		LoadGlobalMaterials();
 		LoadPostProcessMaterials();
 		LoadFrameBufferMaterial();
+        updateLightUniformBuffers(frameTimer);
 
 		createDeferredRenderPass();
 		createDeferredFramebuffer();
@@ -2151,18 +2176,18 @@ public:
 
 		// Voxelization
 		voxelizer.createMipmaps(voxelizer.createVoxels(camera, VK_NULL_HANDLE));
-		
+
 		prepared = true;
 	}
 
 	void render() override
 	{
-		if (!prepared)
-			return;
+		//assert(prepared);
 
-		updateUniformBuffers(frameTimer);
+        updateUniformBuffers(frameTimer);
 		draw();
 
+        firstframe = false;
 		//updateUniformBufferDeferredLights();
 		
 		//if (camera.updated) 
@@ -2173,7 +2198,8 @@ public:
 
 	virtual void viewChanged() override
 	{
-		updateUniformBuffers(frameTimer);
+        return;
+        updateUniformBuffers(frameTimer);
 	}
 
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay) override
