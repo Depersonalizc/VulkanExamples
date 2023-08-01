@@ -22,7 +22,6 @@ private:
 
 	void updateViewMatrix()
 	{
-#define FIX_MAT false
 		glm::mat4 rotM = glm::mat4(1.0f);
 		glm::mat4 transM;
 
@@ -34,11 +33,6 @@ private:
 		if (flipY) {
 			translation.y *= -1.0f;
 		}
-
-#if FIX_MAT
-		translation = -translation;
-		rotM = glm::transpose(rotM);
-#endif
 
 		transM = glm::translate(glm::mat4(1.0f), translation);
 

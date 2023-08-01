@@ -6,6 +6,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 #define SLEEP false
+#define POSTPLANE false
+#define SAMPLE_NO 0
 
 #if defined(__ANDROID__) and SLEEP
 #include <unistd.h>
@@ -33,8 +35,8 @@
 
 // Shadowmap properties
 #if defined(__ANDROID__)
-#define SHADOWMAP_WIDTH 4096
-#define SHADOWMAP_HEIGHT 1024
+#define SHADOWMAP_WIDTH 2048
+#define SHADOWMAP_HEIGHT 512
 #else
 #define SHADOWMAP_WIDTH 4096
 #define SHADOWMAP_HEIGHT 1024
@@ -60,7 +62,17 @@ public:
 	bool bGbufferView = false;
 	bool bRotateMainLight = false;
 
+#if SAMPLE_NO == 0
 	float mainLightAngle = 47.5f;
+#elif SAMPLE_NO == 1
+	float mainLightAngle = 44.4f;
+#elif SAMPLE_NO == 2
+	float mainLightAngle = 138.5f;
+#elif SAMPLE_NO == 3
+	float mainLightAngle = 138.5f;
+#else // 4
+	float mainLightAngle = 138.5f;
+#endif
 	std::vector<DirectionalLight> directionLights;
 
 	StandardShadow standardShadow;
@@ -85,8 +97,10 @@ public:
 	BlurMaterial* VBMaterial2;
 
 	singleTriangular* offScreenPlane;
-	//singleTriangular* offScreenPlaneforPostProcess;
-	singleQuadral* debugDisplayPlane;
+#if POSTPLANE
+	singleTriangular* offScreenPlaneforPostProcess;
+#endif
+    singleQuadral* debugDisplayPlane;
 
 	std::vector<DebugDisplayMaterial*> debugDisplayMaterials;
 	LastPostProcessgMaterial* lastPostProcessMaterial;
@@ -94,9 +108,6 @@ public:
 	FinalRenderingMaterial* frameBufferMaterial;
 
 	VkRenderPass deferredRenderPass;
-#if 0
-	VkCommandPool deferredCommandPool;
-#endif
 	VkCommandBuffer deferredCommandBuffer;
 	VkFramebuffer deferredFrameBuffer;
 
@@ -137,8 +148,25 @@ public:
 		camera.movementSpeed = 5.0f;
 		camera.rotationSpeed = 0.25f;
 #endif
-        camera.position = { -10.0f, +1.7f, 2.0f };
-        camera.setRotation({ 0.0f, 250.0f, 0.0f });
+
+#if SAMPLE_NO == 0
+		camera.position = { -10.0f, +1.7f, 2.0f };
+		camera.setRotation({ 0.0f, 250.0f, 0.0f });
+#elif SAMPLE_NO == 1
+		camera.position = { 11.678f, 0.7312f, -1.1605f };
+		camera.setRotation({ 11.25f, 76.25f, 0.0f });
+#elif SAMPLE_NO == 2
+		camera.position = { -9.513f, 0.85567f, -1.2867f };
+		camera.setRotation({ 11.0f, -74.25f, 0.0f });
+#elif SAMPLE_NO == 3
+		camera.position = { -3.1942, 1.907665, -0.190787 };
+		camera.setRotation({ 16.5, 275.75, 0 });
+#else // 4
+		camera.position = { -9.19345, 2.023224, 6.3907 };
+		camera.setRotation({ -5.75, 241.75, 0 });
+#endif
+
+
 		camera.setPerspective(45.0f, (float)width / (float)height, zNear, zFar);
 		timerSpeed *= 0.25f;
 
@@ -427,10 +455,7 @@ public:
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, frameBufferMaterial->pipeline);
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, frameBufferMaterial->pipelineLayout, 0, 1, &frameBufferMaterial->descriptorSet, 0, nullptr);
-
-			//VkBuffer vertexBuffers[] = { offScreenPlane->vertexBuffer };
-			//VkBuffer indexBuffer = offScreenPlane->indexBuffer;
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &offScreenPlane->vertexBuffer, offsets);
+            vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &offScreenPlane->vertexBuffer, offsets);
 			vkCmdBindIndexBuffer(drawCmdBuffers[i], offScreenPlane->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 			vkCmdDrawIndexed(drawCmdBuffers[i], static_cast<uint32_t>(offScreenPlane->indices.size()), 1, 0, 0, 0);
@@ -672,84 +697,6 @@ public:
 		{
             updateLightUniformBuffers(deltaTime);
 		}
-
-		UniformBufferObject ubo = {};
-		ubo.modelMat = glm::mat4(1.0);
-		ubo.viewMat = camera.matrices.view;
-		ubo.projMat = camera.matrices.perspective;
-		ubo.viewProjMat = camera.matrices.viewProj;
-		ubo.InvViewProjMat = camera.matrices.invViewProj;
-		ubo.modelViewProjMat = ubo.viewProjMat;
-		ubo.cameraWorldPos = camera.position;
-		ubo.InvTransposeMat = ubo.modelMat;
-
-
-		for (size_t i = 0; i < objectManager.size(); i++)
-		{
-			Object* thisObject = objectManager[i];
-
-			if (thisObject->bRoll)
-				thisObject->UpdateOrbit(deltaTime * thisObject->rollSpeed, 0.0f, 0.0f);
-
-			//shadow
-			if (firstframe || thisObject->bRoll)
-			{
-				void* data;
-				//vkMapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &data);
-				//memcpy(data, &subo, sizeof(ShadowUniformBuffer));
-				//vkUnmapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory);
-
-				ObjectUniformBuffer obu = { thisObject->modelMat };
-				vkMapMemory(device, thisObject->shadowMaterial->objectUniformMemory, 0, sizeof(ObjectUniformBuffer), 0, &data);
-				memcpy(data, &obu, sizeof(ObjectUniformBuffer));
-				vkUnmapMemory(device, thisObject->shadowMaterial->objectUniformMemory);
-			}
-
-
-			ubo.modelMat = thisObject->modelMat;
-			ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;
-			//glm::mat4 A = ubo.modelMat;
-			//A[3] = glm::vec4(0, 0, 0, 1);
-			ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));
-
-            if (1)
-            {
-                for (size_t k = 0; k < thisObject->materials.size(); k++) {
-                    void *data;
-                    vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0,
-                                sizeof(UniformBufferObject), 0, &data);
-                    memcpy(data, &ubo, sizeof(UniformBufferObject));
-                    vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
-                }
-            }
-		}
-
-//		if (!firstframe) return;
-
-		if (1)
-		{
-			UniformBufferObject offScreenUbo = {};
-
-			offScreenUbo.modelMat = glm::mat4(1.0);
-
-			offScreenUbo.viewMat = ubo.viewMat;
-			offScreenUbo.projMat = ubo.projMat;
-			offScreenUbo.viewProjMat = ubo.viewProjMat;
-			offScreenUbo.InvViewProjMat = ubo.InvViewProjMat;
-			offScreenUbo.modelViewProjMat = offScreenUbo.viewProjMat;
-			offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
-			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-			offScreenPlane->updateVertexBuffer(offScreenUbo.InvViewProjMat);
-			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
-
-			void *data;
-			vkMapMemory(device, lightingMaterial->uniformBufferMemory, 0,
-						sizeof(UniformBufferObject), 0, &data);
-			memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
-			vkUnmapMemory(device, lightingMaterial->uniformBufferMemory);
-		}
-
 		if (firstframe || bRotateMainLight)
 		{
 			void* directionLightsData;
@@ -763,63 +710,117 @@ public:
 			vkUnmapMemory(device, lightingMaterial->directionalLightBufferMemory);
 		}
 
+		UniformBufferObject ubo = {};
+		ubo.modelMat = glm::mat4(1.0);
+		ubo.viewMat = camera.matrices.view;
+		ubo.projMat = camera.matrices.perspective;
+		ubo.viewProjMat = camera.matrices.viewProj;
+		ubo.InvViewProjMat = camera.matrices.invViewProj;
+		ubo.cameraWorldPos = camera.position;
+		ubo.modelViewProjMat = ubo.viewProjMat;
+		ubo.InvTransposeMat = ubo.modelMat;
+
+
+		for (auto &thisObject : objectManager)
+		{
+			if (thisObject->bRoll)
+				thisObject->UpdateOrbit(deltaTime * thisObject->rollSpeed, 0.0f, 0.0f);
+
+			if (firstframe || thisObject->bRoll)
+			{
+				//shadow
+				void* data;
+				//vkMapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory, 0, sizeof(ShadowUniformBuffer), 0, &data);
+				//memcpy(data, &subo, sizeof(ShadowUniformBuffer));
+				//vkUnmapMemory(device, thisObject->shadowMaterial->ShadowConstantBufferMemory);
+				ObjectUniformBuffer obu = { thisObject->modelMat };
+				vkMapMemory(device, thisObject->shadowMaterial->objectUniformMemory, 0, sizeof(ObjectUniformBuffer), 0, &data);
+				memcpy(data, &obu, sizeof(ObjectUniformBuffer));
+				vkUnmapMemory(device, thisObject->shadowMaterial->objectUniformMemory);
+
+				//
+				ubo.modelMat = thisObject->modelMat;
+				ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;
+				//glm::mat4 A = ubo.modelMat;
+				//A[3] = glm::vec4(0, 0, 0, 1);
+				ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));
+
+				for (size_t k = 0; k < thisObject->materials.size(); k++) 
+				{
+					void* data;
+					vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0,
+						sizeof(UniformBufferObject), 0, &data);
+					memcpy(data, &ubo, sizeof(UniformBufferObject));
+					vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
+				}
+			}
+		}
+
+//		if (!firstframe) return;
+		ubo.modelMat = ubo.InvTransposeMat = glm::mat4(1.0);
+		ubo.modelViewProjMat = ubo.viewProjMat;
+
+		if (1)
+		{
+			void* data;
+			vkMapMemory(device, lightingMaterial->uniformBufferMemory, 0,
+				sizeof(UniformBufferObject), 0, &data);
+			memcpy(data, &ubo, sizeof(UniformBufferObject));
+			vkUnmapMemory(device, lightingMaterial->uniformBufferMemory);
+
+			if (1)
+			//if (firstframe)
+				offScreenPlane->updateVertexBuffer(ubo.InvViewProjMat);  // ! TODO !
+#if POSTPLANE
+			offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+#endif
+		}
+
 		if (bGbufferView)
 		{
-			UniformBufferObject debugDisplayUbo = {};
-
-			debugDisplayUbo.modelMat = glm::mat4(1.0);
-			debugDisplayUbo.viewMat = ubo.viewMat;
-			debugDisplayUbo.projMat = ubo.projMat;
-			debugDisplayUbo.viewProjMat = ubo.viewProjMat;
-			debugDisplayUbo.InvViewProjMat = ubo.InvViewProjMat;
-			debugDisplayUbo.modelViewProjMat = debugDisplayUbo.viewProjMat;
-			debugDisplayUbo.InvTransposeMat = debugDisplayUbo.modelMat;
-			debugDisplayUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-			debugDisplayPlane->updateVertexBuffer(debugDisplayUbo.InvViewProjMat);
+			debugDisplayPlane->updateVertexBuffer(ubo.InvViewProjMat);  // ! TODO !
 
 			for (size_t i = 0; i < NUM_DEBUGDISPLAY; i++)
 			{
 				void* data;
 				vkMapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
-				memcpy(data, &debugDisplayUbo, sizeof(UniformBufferObject));
+				memcpy(data, &ubo, sizeof(UniformBufferObject));
 				vkUnmapMemory(device, debugDisplayMaterials[i]->uniformBufferMemory);
 			}
 		}
 
-		if (1)
+		if (1 /*firstframe*/)
+		{
+			void* data;
+			vkMapMemory(device, frameBufferMaterial->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
+			memcpy(data, &ubo, sizeof(UniformBufferObject));
+			vkUnmapMemory(device, frameBufferMaterial->uniformBufferMemory);
+		}
+
+
+		if (1 /*firstframe*/)
 		{
 			for (size_t i = 0; i < postProcessStages.size(); i++) {
-				UniformBufferObject offScreenUbo = {};
-
-				offScreenUbo.modelMat = glm::mat4(1.0);
 
 				VoxelRenderMaterial *isVXGIMat = dynamic_cast<VoxelRenderMaterial *>(postProcessStages[i]->material);
+				ubo.modelMat = isVXGIMat ? voxelizer.standardObject->modelMat : glm::mat4(1.0);
 
-				if (isVXGIMat != NULL) {
-					offScreenUbo.modelMat = voxelizer.standardObject->modelMat;
-				}
-
-				offScreenUbo.viewMat = ubo.viewMat;
-				offScreenUbo.projMat = ubo.projMat;
-				offScreenUbo.viewProjMat = ubo.viewProjMat;
-				offScreenUbo.InvViewProjMat = ubo.InvViewProjMat;
-				offScreenUbo.modelViewProjMat = offScreenUbo.viewProjMat * offScreenUbo.modelMat;
-				offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
-				offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-				//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
+				ubo.modelViewProjMat = ubo.viewProjMat * ubo.modelMat;
+				ubo.InvTransposeMat = ubo.modelMat;  // ?
 
 				void *data;
 				vkMapMemory(device, postProcessStages[i]->material->uniformBufferMemory, 0,
 							sizeof(UniformBufferObject), 0, &data);
-				memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
+				memcpy(data, &ubo, sizeof(UniformBufferObject));
 				vkUnmapMemory(device, postProcessStages[i]->material->uniformBufferMemory);
+
+
 
 				BlurMaterial *isBlurMat = dynamic_cast<BlurMaterial *>(postProcessStages[i]->material);
 				ComputeBlurMaterial *isComputeBlurMat = dynamic_cast<ComputeBlurMaterial *>(postProcessStages[i]->material);
 
-				if (isBlurMat != NULL) {
+				if (isBlurMat != NULL) 
+				{
 					BlurUniformBufferObject blurUbo;
 
 					blurUbo.widthGap = isBlurMat->extent.x * isBlurMat->widthScale;
@@ -830,7 +831,9 @@ public:
 								sizeof(BlurUniformBufferObject), 0, &data);
 					memcpy(data, &blurUbo, sizeof(BlurUniformBufferObject));
 					vkUnmapMemory(device, isBlurMat->blurUniformBufferMemory);
-				} else if (isComputeBlurMat != NULL) {
+				} 
+				else if (isComputeBlurMat != NULL) 
+				{
 					BlurUniformBufferObject blurUbo;
 					blurUbo.widthGap = postProcessStages[i]->getImageSize().x;
 					blurUbo.heightGap = postProcessStages[i]->getImageSize().y;
@@ -842,27 +845,6 @@ public:
 				}
 
 			}
-		}
-
-		if (1)
-		{
-			UniformBufferObject offScreenUbo = {};
-
-			offScreenUbo.modelMat = glm::mat4(1.0);
-			offScreenUbo.viewMat = ubo.viewMat;
-			offScreenUbo.projMat = ubo.projMat;
-			offScreenUbo.viewProjMat = ubo.viewProjMat;
-			offScreenUbo.InvViewProjMat = ubo.InvViewProjMat;
-			offScreenUbo.modelViewProjMat = offScreenUbo.viewProjMat;
-			offScreenUbo.InvTransposeMat = offScreenUbo.modelMat;
-			offScreenUbo.cameraWorldPos = ubo.cameraWorldPos;
-
-			//offScreenPlaneforPostProcess->updateVertexBuffer(offScreenUbo.InvViewProjMat);
-
-			void* data;
-			vkMapMemory(device, frameBufferMaterial->uniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
-			memcpy(data, &offScreenUbo, sizeof(UniformBufferObject));
-			vkUnmapMemory(device, frameBufferMaterial->uniformBufferMemory);
 		}
 
 	}
@@ -1060,14 +1042,18 @@ public:
 		debugDisplayPlane = new singleQuadral;
 		debugDisplayPlane->LoadFromFilename(device, physicalDevice, cmdPool /*frameBufferCommandPool*/, queue /*lightingQueue*/, "debugDisplayPlane");
 
-		//offScreenPlaneforPostProcess = new singleTriangular;
-		//offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
-	}
+#if POSTPLANE
+		offScreenPlaneforPostProcess = new singleTriangular;
+		offScreenPlaneforPostProcess->LoadFromFilename(device, physicalDevice, sceneStage->commandPool, queue /*postProcessQueue*/, "offScreenPlaneforPostProcess");
+#endif
+    }
 	void destroyPlaneGeos()
 	{
 		delete offScreenPlane;
 		delete debugDisplayPlane;
-		//delete offScreenPlaneforPostProcess;
+#if POSTPLANE
+		delete offScreenPlaneforPostProcess;
+#endif
 	}
 
 	// TODO: Change voxelizer.Initialize (Don't directly access surface)
@@ -2100,7 +2086,8 @@ public:
 			int i = 0;
 			for (auto& post : postProcessStages)
 			{
-				//if (i >= 2 && i++ <= 6) continue;
+				//if (i >= 2 && i++ < 7) continue;
+				//if (i++ == 2) continue;
 
 				currentSemaphore = post->postProcessSemaphore;
 				submitInfo.pWaitSemaphores = &prevSemaphore;
@@ -2178,6 +2165,7 @@ public:
 		voxelizer.createMipmaps(voxelizer.createVoxels(camera, VK_NULL_HANDLE));
 
 		prepared = true;
+
 	}
 
 	void render() override
@@ -2198,8 +2186,37 @@ public:
 
 	virtual void viewChanged() override
 	{
-        return;
-        updateUniformBuffers(frameTimer);
+		UniformBufferObject ubo = {};
+		ubo.modelMat = glm::mat4(1.0);
+		ubo.viewMat = camera.matrices.view;
+		ubo.projMat = camera.matrices.perspective;
+		ubo.viewProjMat = camera.matrices.viewProj;
+		ubo.InvViewProjMat = camera.matrices.invViewProj;
+		ubo.modelViewProjMat = ubo.viewProjMat;
+		ubo.cameraWorldPos = camera.position;
+		ubo.InvTransposeMat = ubo.modelMat;
+
+
+		for (size_t i = 0; i < objectManager.size(); i++)
+		{
+			Object* thisObject = objectManager[i];
+			//
+			ubo.modelMat = thisObject->modelMat;  // TODO
+			ubo.modelViewProjMat = ubo.viewProjMat * thisObject->modelMat;  // TODO
+			//glm::mat4 A = ubo.modelMat;
+			//A[3] = glm::vec4(0, 0, 0, 1);
+			ubo.InvTransposeMat = glm::transpose(glm::inverse(ubo.modelMat));  // TODO
+
+			for (size_t k = 0; k < thisObject->materials.size(); k++)
+			{
+				void* data;
+				vkMapMemory(device, thisObject->materials[k]->uniformBufferMemory, 0,
+					sizeof(UniformBufferObject), 0, &data);
+				memcpy(data, &ubo, sizeof(UniformBufferObject));
+				vkUnmapMemory(device, thisObject->materials[k]->uniformBufferMemory);
+			}
+
+		}
 	}
 
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay) override

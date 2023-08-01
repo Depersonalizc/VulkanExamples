@@ -4,7 +4,6 @@
 
 #include "Common.h"
 #include "VulkanQueue.h"
-//#include "../actors/Camera.h"
 #include "../actors/Object.h"
 
 #if defined(__ANDROID__)
